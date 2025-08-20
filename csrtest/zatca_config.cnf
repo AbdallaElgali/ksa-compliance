@@ -1,0 +1,28 @@
+1. generate invoice xml
+2. generate invoice hash on the clean xml
+3. generate the base64QrCode
+
+private string GetCleanInvoiceXML(bool applayXsl = true)
+    {
+        try
+        {
+            XmlSerializerNamespaces namespaces = new();
+            namespaces.Add("cac", "urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2");
+            namespaces.Add("cbc", "urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2");
+            namespaces.Add("ext", "urn:oasis:names:specification:ubl:schema:xsd:CommonExtensionComponents-2");
+
+            var invoiceData = InvoiceObject.ObjectToXml(namespaces);
+
+            //invoiceData = invoiceData.MoveLastAttributeToFirst();
+
+            if (applayXsl) { invoiceData = invoiceData.ApplyXSLT(SharedUtilities.ReadResource("ZatcaDataInvoice.xsl"), true); }
+
+            return invoiceData.ToFormattedXml();
+
+        }
+        catch (Exception)
+        {
+            //Console.WriteLine($"Error Get CleanInvoice XML: {ex.Message}");
+            return null;
+        }
+    }
