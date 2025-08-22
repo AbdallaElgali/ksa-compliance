@@ -9,14 +9,12 @@ import qrcode
 from io import BytesIO
 import uuid
 from lxml import etree
-from cert_decoder import extract_pubkey_and_cert
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.hazmat.primitives.asymmetric.utils import Prehashed
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
-import xmlsec
 
+XSL_FILE = "Resources/transform.xsl"
 
 # ========== TYPES ==========
 class AmountWithCurrency(TypedDict):
@@ -140,14 +138,9 @@ class ZatcaSimplifiedInvoice:
 
         return pub_key_b64
 
-    def _canonicalize_xml(self, xml_bytes: str) -> bytes:
-        import io
-        parser = etree.XMLParser(remove_blank_text=True)
-        root = etree.fromstring(xml_bytes.encode("utf-8"), parser)
-        buf = io.BytesIO()
-        # exclusive=False → Canonical XML 1.1
-        root.getroottree().write_c14n(buf, exclusive=False, with_comments=False)
-        return buf.getvalue()
+    def _canonicalize_xml(self, transformed_xml: str) -> str:
+        """ Canonicalize the transformed XML. Returning the canonical xml string."""
+        return etree.tostring(transformed_xml, method='c14n').decode('utf-8')
 
     def get_signed_properties_hash(self, signingTime, digestValue, x509IssuerName, x509SerialNumber) -> str:
         xmlString = f"""<xades:SignedProperties xmlns:xades="http://uri.etsi.org/01903/v1.3.2#" Id="xadesSignedProperties">
@@ -166,13 +159,13 @@ class ZatcaSimplifiedInvoice:
                                     </xades:Cert>
                                 </xades:SigningCertificate>
                             </xades:SignedSignatureProperties>
-                        </xades:SignedProperties>""".replace("\r\n", "\n").strip()
+                        </xades:SignedProperties>"""
 
         # Step 1: Hash XML string (UTF-8)
         hash_bytes = hashlib.sha256(xmlString.encode("utf-8")).digest()
 
         # Step 2: Convert to lowercase hex string
-        hash_hex = hash_bytes.hex()
+        hash_hex = hash_bytes.hex().replace('-', "").lower()
 
         # Step 3: Base64 encode the UTF-8 bytes of that hex string
         return base64.b64encode(hash_hex.encode("utf-8")).decode("utf-8")
@@ -262,7 +255,10 @@ class ZatcaSimplifiedInvoice:
         cert_der = base64.b64decode(self.cert)
         cert = x509.load_der_x509_certificate(cert_der, default_backend())
         digest_bytes = hashlib.sha256(cert_der).digest()
-        digest_b64 = base64.b64encode(digest_bytes).decode()
+        digest_hex = digest_bytes.hex().lower()
+        digest_b64 = base64.b64encode(digest_hex.encode()).decode()
+
+        print('Certificate hash: ', digest_b64)
 
         # 2. Issuer Name
         issuer_name = cert.issuer.rfc4514_string()  # e.g., "CN=..., O=..., C=..."
@@ -279,71 +275,19 @@ class ZatcaSimplifiedInvoice:
             invoice_digest=invoice_hash,
             signed_props_digest=signed_props_digest,
             signature_value=signature_value,
-            certificate=self.cert,  # truncated
+            certificate=self.cert,
             signing_time=signingTime,
             cert_digest=digest_b64,
             issuer_name=issuer_name,
             issuer_serial=serial_number
         )
-
-    def remove_tags(self, xml: str) -> str:
-        root = etree.fromstring(xml.encode("utf-8"))
-
-        # Collect namespaces
-        nsmap = root.nsmap.copy()
-        if None in nsmap:  # default namespace
-            nsmap['ns'] = nsmap.pop(None)
-
-        # Remove <UBLExtensions>
-        for elem in root.xpath('//ns:UBLExtensions', namespaces=nsmap):
-            parent = elem.getparent()
-            if parent is not None:
-                parent.remove(elem)
-
-        # Remove QR document reference
-        for elem in root.xpath('//ns:AdditionalDocumentReference[ns:ID="QR"]', namespaces=nsmap):
-            parent = elem.getparent()
-            if parent is not None:
-                parent.remove(elem)
-
-        # Remove <Signature>
-        for elem in root.xpath('//ns:Signature', namespaces=nsmap):
-            parent = elem.getparent()
-            if parent is not None:
-                parent.remove(elem)
-
-        return etree.tostring(root, encoding="utf-8", xml_declaration=True).decode("utf-8")
-
-    def _remove_tags(self, xml: str) -> str:
-        root = etree.fromstring(xml.encode("utf-8"))
-
-        nsmap = root.nsmap.copy()
-        if None in nsmap:
-            nsmap['ns'] = nsmap.pop(None)
-
-        for elem in root.xpath('//ns:UBLExtensions', namespaces=nsmap):
-            parent = elem.getparent()
-            if parent is not None:
-                parent.remove(elem)
-
-        for elem in root.xpath('//ns:AdditionalDocumentReference[ns:ID="QR"]', namespaces=nsmap):
-            parent = elem.getparent()
-            if parent is not None:
-                parent.remove(elem)
-
-        for elem in root.xpath('//ns:Signature', namespaces=nsmap):
-            parent = elem.getparent()
-            if parent is not None:
-                parent.remove(elem)
-
-        # Serialize without declaration
-        xml_str = etree.tostring(root, encoding="utf-8", xml_declaration=False).decode("utf-8")
-
-        # Double-safety: remove any leftover xml declaration manually
-        if xml_str.lstrip().startswith("<?xml"):
-            xml_str = xml_str.split("?>", 1)[1].lstrip()
-
-        return xml_str
+    def transform_xml(self, xml, xsl_file_path):
+        """ Apply XSL transformation to an XML """
+        xsl = etree.parse(xsl_file_path)
+        transform = etree.XSLT(xsl)
+        transformed_xml = transform(xml)
+        if transformed_xml is None: raise Exception("XSL: Transformation Failed!!")
+        return transformed_xml
 
     # --------- INVOICE GENERATION ---------
     def generate(self,
@@ -358,7 +302,7 @@ class ZatcaSimplifiedInvoice:
         invoice_date = invoice_date.replace(microsecond=0)
 
         # Step 1: Build initial XML (placeholders for QR & PIH)
-        xml_template = self._build_xml(
+        xml_invoice = self._build_xml(
             invoice_number=invoice_number,
             invoice_date=invoice_date,
             lines=lines,
@@ -369,16 +313,15 @@ class ZatcaSimplifiedInvoice:
             invoice_uuid=invoice_uuid
         )
 
-        cleaned_xml = self._remove_tags(xml_template)
-
-        with open('invoice.xml', "w+") as f:
-            f.write(cleaned_xml)
+        parser = etree.XMLParser(remove_blank_text=False)
+        xml = etree.fromstring(xml_invoice.encode("utf-8"), parser)
+        transfomred_xml = self.transform_xml(xml, XSL_FILE)
 
         # Step 2: Canonicalize the XML
-        canonicalized_xml = self._canonicalize_xml(cleaned_xml)
+        canonicalized_xml = self._canonicalize_xml(transfomred_xml)
 
         # Step 3: Compute the hash from canonicalized XML
-        invoice_hash = hashlib.sha256(canonicalized_xml).digest()  # invoice hash raw #1
+        invoice_hash = hashlib.sha256(canonicalized_xml.encode()).digest()  # invoice hash raw #1
 
         invoice_hash_b64 = base64.b64encode(invoice_hash).decode()
 
@@ -403,7 +346,7 @@ class ZatcaSimplifiedInvoice:
         qr_base64 = base64.b64encode(qr_data).decode("utf-8")
 
         # Step 7: Insert QR and PIH into XML
-        xml_with_qr_pih = self.insert_signature_qr(cleaned_xml, signed_extensions, qr_base64)
+        xml_with_qr_pih = self.insert_signature_qr(xml_invoice, signed_extensions, qr_base64)
 
         # Step 9: Insert signed extensions at the proper location
         final_xml = xml_with_qr_pih
@@ -650,7 +593,7 @@ class ZatcaSimplifiedInvoice:
     def insert_signature_qr(self, invoice_xml: str, signed_extensions: str, qr64: str) -> str:
         from lxml import etree
 
-        parser = etree.XMLParser(remove_blank_text=True, ns_clean=True)
+        parser = etree.XMLParser(remove_blank_text=False)
         root = etree.fromstring(invoice_xml.encode("utf-8"), parser)
 
         nsmap = root.nsmap.copy()
@@ -718,10 +661,10 @@ class ZatcaSimplifiedInvoice:
 
         return etree.tostring(
             root,
-            pretty_print=True,
-            encoding="utf-8",
-            xml_declaration=True
+            pretty_print=False,
+            encoding="UTF-8"
         ).decode('utf-8')
+
     def _build_xml(self,
                    invoice_number: str,
                    invoice_date: datetime,
@@ -738,7 +681,7 @@ class ZatcaSimplifiedInvoice:
         issue_time = invoice_date.strftime("%H:%M:%S")
 
         xml_template = f"""<?xml version="1.0" encoding="UTF-8"?>
-        <Invoice xmlns="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2" xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2" xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2" xmlns:ext="urn:oasis:names:specification:ubl:schema:xsd:CommonExtensionComponents-2"><ext:UBLExtensions></ext:UBLExtensions>
+        <Invoice xmlns="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2" xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2" xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2" xmlns:ext="urn:oasis:names:specification:ubl:schema:xsd:CommonExtensionComponents-2">
             <cbc:ProfileID>reporting:1.0</cbc:ProfileID>
             <cbc:ID>{invoice_number}</cbc:ID>
             <cbc:UUID>{invoice_uuid}</cbc:UUID>

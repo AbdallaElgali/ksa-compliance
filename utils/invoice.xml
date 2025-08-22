@@ -1,9 +1,8 @@
-<Invoice xmlns="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2" xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2" xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2" xmlns:ext="urn:oasis:names:specification:ubl:schema:xsd:CommonExtensionComponents-2"><ext:UBLExtensions/>
-            <cbc:ProfileID>reporting:1.0</cbc:ProfileID>
+<Invoice xmlns="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2" xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2" xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2" xmlns:ext="urn:oasis:names:specification:ubl:schema:xsd:CommonExtensionComponents-2"><cbc:ProfileID>reporting:1.0</cbc:ProfileID>
             <cbc:ID>SME00023</cbc:ID>
-            <cbc:UUID>deccce64-1faf-47f4-970f-b35d56224f63</cbc:UUID>
-            <cbc:IssueDate>2025-08-20</cbc:IssueDate>
-            <cbc:IssueTime>16:25:33</cbc:IssueTime>
+            <cbc:UUID>b4c89fa2-3264-4733-b065-501febcdf94b</cbc:UUID>
+            <cbc:IssueDate>2025-08-21</cbc:IssueDate>
+            <cbc:IssueTime>15:20:31</cbc:IssueTime>
             <cbc:InvoiceTypeCode name="020000000">388</cbc:InvoiceTypeCode>
             <cbc:DocumentCurrencyCode>SAR</cbc:DocumentCurrencyCode>
             <cbc:TaxCurrencyCode>SAR</cbc:TaxCurrencyCode>
