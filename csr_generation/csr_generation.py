@@ -1,4 +1,4 @@
-from utils.csr_generation.zatca_csr_gen import GenerateCSR  # the class from previous code
+from csr_generation.zatca_csr_gen import GenerateCSR  # the class from previous code
 
 text_info = {
     "vat_reg_number": "301012414510123",

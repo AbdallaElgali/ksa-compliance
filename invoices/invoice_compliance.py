@@ -85,7 +85,7 @@ def check_invoice_compliance(invoice_hash, uuid, invoice_b64, binarySecurityToke
     response = requests.post(url, json=payload, headers=headers, auth=auth)
 
     if response.status_code == 200:
-        print("Compliance Invoices Response:", response.json())
+        print("Compliance invoices Response:", response.json())
         return response.json()
     else:
         print(f"Compliance check failed with: {response.status_code}")
