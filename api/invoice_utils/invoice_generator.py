@@ -13,8 +13,13 @@ from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
+import io
+import os
 
-XSL_FILE = "Resources/transform.xsl"
+current_dir = os.getcwd()
+#XSL_FILE = f"{current_dir}\\invoice_utils\\Resources\\transform.xsl"
+XSL_FILE = f"{current_dir}\\Resources\\transform.xsl"
+
 
 # ========== TYPES ==========
 class AmountWithCurrency(TypedDict):
@@ -143,132 +148,132 @@ class ZatcaSimplifiedInvoice:
         return etree.tostring(transformed_xml, method='c14n').decode('utf-8')
 
     def get_signed_properties_hash(self, signingTime, digestValue, x509IssuerName, x509SerialNumber) -> str:
-        xmlString = f"""<xades:SignedProperties xmlns:xades="http://uri.etsi.org/01903/v1.3.2#" Id="xadesSignedProperties">
-                            <xades:SignedSignatureProperties>
-                                <xades:SigningTime>{signingTime}</xades:SigningTime>
-                                <xades:SigningCertificate>
-                                    <xades:Cert>
-                                        <xades:CertDigest>
-                                            <ds:DigestMethod xmlns:ds="http://www.w3.org/2000/09/xmldsig#" Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
-                                            <ds:DigestValue xmlns:ds="http://www.w3.org/2000/09/xmldsig#">{digestValue}</ds:DigestValue>
-                                        </xades:CertDigest>
-                                        <xades:IssuerSerial>
-                                            <ds:X509IssuerName xmlns:ds="http://www.w3.org/2000/09/xmldsig#">{x509IssuerName}</ds:X509IssuerName>
-                                            <ds:X509SerialNumber xmlns:ds="http://www.w3.org/2000/09/xmldsig#">{x509SerialNumber}</ds:X509SerialNumber>
-                                        </xades:IssuerSerial>
-                                    </xades:Cert>
-                                </xades:SigningCertificate>
-                            </xades:SignedSignatureProperties>
-                        </xades:SignedProperties>"""
+        # Construct the XML string with exactly 36 spaces in front of <xades:SignedSignatureProperties>
+        xml_string = (
+                '<xades:SignedProperties xmlns:xades="http://uri.etsi.org/01903/v1.3.2#" Id="xadesSignedProperties">\n'
+                '                                    <xades:SignedSignatureProperties>\n'
+                '                                        <xades:SigningTime>{}</xades:SigningTime>\n'.format(
+                    signingTime) +
+                '                                        <xades:SigningCertificate>\n'
+                '                                            <xades:Cert>\n'
+                '                                                <xades:CertDigest>\n'
+                '                                                    <ds:DigestMethod xmlns:ds="http://www.w3.org/2000/09/xmldsig#" Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>\n'
+                '                                                    <ds:DigestValue xmlns:ds="http://www.w3.org/2000/09/xmldsig#">{}</ds:DigestValue>\n'.format(
+                    digestValue) +
+                '                                                </xades:CertDigest>\n'
+                '                                                <xades:IssuerSerial>\n'
+                '                                                    <ds:X509IssuerName xmlns:ds="http://www.w3.org/2000/09/xmldsig#">{}</ds:X509IssuerName>\n'.format(
+                    x509IssuerName) +
+                '                                                    <ds:X509SerialNumber xmlns:ds="http://www.w3.org/2000/09/xmldsig#">{}</ds:X509SerialNumber>\n'.format(
+                    x509SerialNumber) +
+                '                                                </xades:IssuerSerial>\n'
+                '                                            </xades:Cert>\n'
+                '                                        </xades:SigningCertificate>\n'
+                '                                    </xades:SignedSignatureProperties>\n'
+                '                                </xades:SignedProperties>'
+        )
 
-        # Step 1: Hash XML string (UTF-8)
-        hash_bytes = hashlib.sha256(xmlString.encode("utf-8")).digest()
+        # Clean up the XML string (normalize newlines and trim extra spaces)
+        xml_string = xml_string.replace("\r\n", "\n").strip()
 
-        # Step 2: Convert to lowercase hex string
-        hash_hex = hash_bytes.hex().replace('-', "").lower()
+        # Generate the SHA256 hash of the XML string in binary format
+        hash_bytes = hashlib.sha256(xml_string.encode('utf-8')).digest()
 
-        # Step 3: Base64 encode the UTF-8 bytes of that hex string
-        return base64.b64encode(hash_hex.encode("utf-8")).decode("utf-8")
+        # Convert the hash to hex and then base64 encode the result
+        hash_hex = hash_bytes.hex()
+        return base64.b64encode(hash_hex.encode('utf-8')).decode('utf-8')
 
     def _generate_signed_extensions(self, invoice_hash: str, signature_value: str, invoice_date: datetime) -> str:
-        """
-        Generate ZATCA-compliant UBL signature block with XAdES,
-        fully using dynamically generated SignedProperties.
-        """
+        # Build UBL template but *leave a marker* where SignedProperties XML will be injected.
         UBL_INVOICE_TEMPLATE = """
         <ext:UBLExtensions xmlns:ext="urn:oasis:names:specification:ubl:schema:xsd:CommonExtensionComponents-2"
                            xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2"
                            xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2">
-                <ext:UBLExtension>
-                    <ext:ExtensionURI>urn:oasis:names:specification:ubl:dsig:enveloped:xades</ext:ExtensionURI>
-                    <ext:ExtensionContent>
-                        <sig:UBLDocumentSignatures 
-                            xmlns:sig="urn:oasis:names:specification:ubl:schema:xsd:CommonSignatureComponents-2"
-                            xmlns:sac="urn:oasis:names:specification:ubl:schema:xsd:SignatureAggregateComponents-2"
-                            xmlns:sbc="urn:oasis:names:specification:ubl:schema:xsd:SignatureBasicComponents-2">
+            <ext:UBLExtension>
+                <ext:ExtensionURI>urn:oasis:names:specification:ubl:dsig:enveloped:xades</ext:ExtensionURI>
+                <ext:ExtensionContent>
+                    <sig:UBLDocumentSignatures 
+                        xmlns:sig="urn:oasis:names:specification:ubl:schema:xsd:CommonSignatureComponents-2"
+                        xmlns:sac="urn:oasis:names:specification:ubl:schema:xsd:SignatureAggregateComponents-2"
+                        xmlns:sbc="urn:oasis:names:specification:ubl:schema:xsd:SignatureBasicComponents-2">
 
-                            <sac:SignatureInformation>
-                                <cbc:ID>{signature_id}</cbc:ID>
-                                <sbc:ReferencedSignatureID>{referenced_signature_id}</sbc:ReferencedSignatureID>
-                                <ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#" Id="signature">
-                                    <ds:SignedInfo>
-                                        <ds:CanonicalizationMethod Algorithm="http://www.w3.org/2006/12/xml-c14n11"/>
-                                        <ds:SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#ecdsa-sha256"/>
-                                        <ds:Reference Id="invoiceSignedData" URI="">
-                                            <ds:Transforms>
-                                                <ds:Transform Algorithm="http://www.w3.org/TR/1999/REC-xpath-19991116">
-                                                    <ds:XPath>not(//ancestor-or-self::ext:UBLExtensions)</ds:XPath>
-                                                </ds:Transform>
-                                                <ds:Transform Algorithm="http://www.w3.org/TR/1999/REC-xpath-19991116">
-                                                    <ds:XPath>not(//ancestor-or-self::cac:Signature)</ds:XPath>
-                                                </ds:Transform>
-                                                <ds:Transform Algorithm="http://www.w3.org/TR/1999/REC-xpath-19991116">
-                                                    <ds:XPath>not(//ancestor-or-self::cac:AdditionalDocumentReference[cbc:ID='QR'])</ds:XPath>
-                                                </ds:Transform>
-                                                <ds:Transform Algorithm="http://www.w3.org/2006/12/xml-c14n11"/>
-                                            </ds:Transforms>
-                                            <ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
-                                            <ds:DigestValue>{invoice_digest}</ds:DigestValue>
-                                        </ds:Reference>
-                                        <ds:Reference Type="http://www.w3.org/2000/09/xmldsig#SignatureProperties" URI="#xadesSignedProperties">
-                                            <ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
-                                            <ds:DigestValue>{signed_props_digest}</ds:DigestValue>
-                                        </ds:Reference>
-                                    </ds:SignedInfo>
+                        <sac:SignatureInformation>
+                            <cbc:ID>{signature_id}</cbc:ID>
+                            <sbc:ReferencedSignatureID>{referenced_signature_id}</sbc:ReferencedSignatureID>
+                            <ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#" Id="signature">
+                                <ds:SignedInfo>
+                                    <!-- use exclusive c14n consistently -->
+                                    <ds:CanonicalizationMethod Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"/>
+                                    <ds:SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"/>
+                                    <ds:Reference Id="invoiceSignedData" URI="">
+                                        <ds:Transforms>
+                                            <!-- keep your xpath filters -->
+                                            <ds:Transform Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"/>
+                                        </ds:Transforms>
+                                        <ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
+                                        <ds:DigestValue>{invoice_digest}</ds:DigestValue>
+                                    </ds:Reference>
 
-                                    <ds:SignatureValue>{signature_value}</ds:SignatureValue>
-                                    <ds:KeyInfo>
-                                        <ds:X509Data>
-                                            <ds:X509Certificate>{certificate}</ds:X509Certificate>
-                                        </ds:X509Data>
-                                    </ds:KeyInfo>
+                                    <ds:Reference Type="http://uri.etsi.org/01903#SignedProperties" URI="#xadesSignedProperties">
+                                        <ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
+                                        <ds:DigestValue>{signed_props_digest}</ds:DigestValue>
+                                    </ds:Reference>
+                                </ds:SignedInfo>
 
-                                    <ds:Object>
-                                        <xades:QualifyingProperties xmlns:xades="http://uri.etsi.org/01903/v1.3.2#" Target="signature">
-                                            <xades:SignedProperties Id="xadesSignedProperties">
-                                                <xades:SignedSignatureProperties>
-                                                    <xades:SigningTime>{signing_time}</xades:SigningTime>
-                                                    <xades:SigningCertificate>
-                                                        <xades:Cert>
-                                                            <xades:CertDigest>
-                                                                <ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
-                                                                <ds:DigestValue>{cert_digest}</ds:DigestValue>
-                                                            </xades:CertDigest>
-                                                            <xades:IssuerSerial>
-                                                                <ds:X509IssuerName>{issuer_name}</ds:X509IssuerName>
-                                                                <ds:X509SerialNumber>{issuer_serial}</ds:X509SerialNumber>
-                                                            </xades:IssuerSerial>
-                                                        </xades:Cert>
-                                                    </xades:SigningCertificate>
-                                                </xades:SignedSignatureProperties>
-                                            </xades:SignedProperties>
-                                        </xades:QualifyingProperties>
-                                    </ds:Object>
-                                </ds:Signature>
-                            </sac:SignatureInformation>
-                        </sig:UBLDocumentSignatures>
-                    </ext:ExtensionContent>
-                </ext:UBLExtension>
-            </ext:UBLExtensions>
+                                <ds:SignatureValue>{signature_value}</ds:SignatureValue>
+                                <ds:KeyInfo>
+                                    <ds:X509Data>
+                                        <ds:X509Certificate>{certificate}</ds:X509Certificate>
+                                    </ds:X509Data>
+                                </ds:KeyInfo>
+
+                                <ds:Object>
+                                    <xades:QualifyingProperties Target="signature" xmlns:xades="http://uri.etsi.org/01903/v1.3.2#">
+                                        <xades:SignedProperties Id="xadesSignedProperties">
+                                            <xades:SignedSignatureProperties>
+                                                <xades:SigningTime>{SIGNATURE_TIMESTAMP}</xades:SigningTime>
+                                                <xades:SigningCertificate>
+                                                    <xades:Cert>
+                                                        <xades:CertDigest>
+                                                            <ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
+                                                            <ds:DigestValue>{PUBLICKEY_HASHING}</ds:DigestValue>
+                                                        </xades:CertDigest>
+                                                        <xades:IssuerSerial>
+                                                            <ds:X509IssuerName>{ISSUER_NAME}</ds:X509IssuerName>
+                                                            <ds:X509SerialNumber>{SERIAL_NUMBER}</ds:X509SerialNumber>
+                                                        </xades:IssuerSerial>
+                                                    </xades:Cert>
+                                                </xades:SigningCertificate>
+                                            </xades:SignedSignatureProperties>
+                                        </xades:SignedProperties>
+                                    </xades:QualifyingProperties>
+                                </ds:Object>
+                            </ds:Signature>
+                        </sac:SignatureInformation>
+                    </sig:UBLDocumentSignatures>
+                </ext:ExtensionContent>
+            </ext:UBLExtension>
+        </ext:UBLExtensions>
         """
 
+        # cert digest (bytes -> sha256 -> base64)
         cert_der = base64.b64decode(self.cert)
         cert = x509.load_der_x509_certificate(cert_der, default_backend())
-        digest_bytes = hashlib.sha256(cert_der).digest()
-        digest_hex = digest_bytes.hex().lower()
-        digest_b64 = base64.b64encode(digest_hex.encode()).decode()
+        cert_digest_b64 = base64.b64encode(hashlib.sha256(cert_der).digest()).decode()
 
-        print('Certificate hash: ', digest_b64)
-
-        # 2. Issuer Name
-        issuer_name = cert.issuer.rfc4514_string()  # e.g., "CN=..., O=..., C=..."
-
-        # 3. Serial Number
-        serial_number = str(cert.serial_number)  # decimal string
-
+        issuer_name = cert.issuer.rfc4514_string()
+        serial_number = str(cert.serial_number)
         signingTime = invoice_date.strftime("%Y-%m-%dT%H:%M:%S")
-        signed_props_digest = self.get_signed_properties_hash(signingTime, invoice_hash, issuer_name, serial_number)
 
+        # Get signed properties digest and XML (note the correct arg: cert_digest_b64)
+        signed_props_digest = self.get_signed_properties_hash(
+            signingTime=signingTime,
+            digestValue=cert_digest_b64,
+            x509IssuerName=issuer_name,
+            x509SerialNumber=serial_number
+        )
+
+        # now fill the template using the digest and the signed_props_xml (serialized)
         return UBL_INVOICE_TEMPLATE.format(
             signature_id="urn:oasis:names:specification:ubl:signature:1",
             referenced_signature_id="urn:oasis:names:specification:ubl:signature:Invoice",
@@ -276,11 +281,19 @@ class ZatcaSimplifiedInvoice:
             signed_props_digest=signed_props_digest,
             signature_value=signature_value,
             certificate=self.cert,
-            signing_time=signingTime,
-            cert_digest=digest_b64,
-            issuer_name=issuer_name,
-            issuer_serial=serial_number
+            ISSUER_NAME=issuer_name,
+            SIGNATURE_TIMESTAMP=signingTime,
+            SERIAL_NUMBER=serial_number,
+            PUBLICKEY_HASHING=self.generate_public_key_hashing()
+
         )
+
+    def generate_public_key_hashing(self):
+        x509_cert = self.cert
+        hash_bytes = hashlib.sha256(x509_cert.encode('utf-8')).digest()
+        hash_hex = hash_bytes.hex()
+        return base64.b64encode(hash_hex.encode('utf-8')).decode('utf-8')
+
     def transform_xml(self, xml, xsl_file_path):
         """ Apply XSL transformation to an XML """
         xsl = etree.parse(xsl_file_path)
@@ -294,7 +307,7 @@ class ZatcaSimplifiedInvoice:
                  invoice_number: str,
                  invoice_date: datetime,
                  lines: List[InvoiceLine],
-                 previous_invoice_hash: str = "") -> Tuple[str, str, str]:
+                 previous_invoice_hash: str) -> Tuple[str, str, str, str]:
 
         totals = self._calculate_totals(lines)
         invoice_uuid = str(uuid.uuid4())
@@ -308,8 +321,7 @@ class ZatcaSimplifiedInvoice:
             lines=lines,
             totals=totals,
             qr_code="",  # placeholder
-            pih="",  # placeholder
-            previous_invoice_hash=previous_invoice_hash,
+            pih=previous_invoice_hash,  # placeholder
             invoice_uuid=invoice_uuid
         )
 
@@ -350,9 +362,17 @@ class ZatcaSimplifiedInvoice:
 
         # Step 9: Insert signed extensions at the proper location
         final_xml = xml_with_qr_pih
+        final_b64 = base64.b64encode(final_xml.encode("utf-8")).decode("utf-8")
+
+
+        # Step 10: generate qrcode as an image encoded in base64
+        qr_img = qrcode.make(qr_data)
+        buffer = io.BytesIO()
+        qr_img.save(buffer, format="PNG")
+        qr_img_base64 = base64.b64encode(buffer.getvalue()).decode("utf-8")
 
         # Return final XML and hash that matches it
-        return final_xml, invoice_uuid, invoice_hash_b64
+        return final_xml, invoice_uuid, invoice_hash_b64, qr_img_base64
 
     # --------- HELPERS ---------
     def insert_qr_pih(self, xml, pih, qr64):
@@ -396,43 +416,11 @@ class ZatcaSimplifiedInvoice:
             'vat_breakdown': vat_list
         }
 
-    def _generate_uuid(self, invoice_number: str, invoice_date: datetime) -> str:
-        unix_timestamp = int(invoice_date.timestamp())
-        return f"{self.seller['tax_number']}_{unix_timestamp}_{invoice_number}"
-
     def _generate_qr_tlv_binary(self, seller_name: str, tax_number: str, invoice_date: datetime,
                                 total_with_vat: str, vat_amount: str,
                                 invoice_hash: str, signature_value: str) -> bytes:
         """Generate ZATCA-compliant QR TLV binary data with robust debugging"""
         date_str = invoice_date.strftime('%Y-%m-%dT%H:%M:%S')
-
-        def decode_tlv(data: bytes) -> dict:
-            """Helper to decode TLV for debugging"""
-            result = {}
-            i = 0
-            while i < len(data):
-                try:
-                    tag = data[i]
-                    length = data[i + 1]
-                    value_bytes = data[i + 2:i + 2 + length]
-
-                    # Try UTF-8 decoding for text fields, show hex for binary
-                    try:
-                        value = value_bytes.decode('utf-8')
-                        if len(value) > 50:
-                            value = f"{value[:50]}... (truncated)"
-                    except UnicodeDecodeError:
-                        value = f"<binary data: {value_bytes.hex()[:50]}...>"
-
-                    result[tag] = {
-                        'length': length,
-                        'value': value,
-                        'raw_length': len(value_bytes)
-                    }
-                    i += 2 + length
-                except IndexError:
-                    break
-            return result
 
         def encode_tlv(tag: int, value: Union[str, bytes]) -> bytes:
             """Safe TLV encoder with detailed error reporting"""
@@ -532,64 +520,6 @@ class ZatcaSimplifiedInvoice:
             print(self.cert[:200])
             raise
 
-    def get_digital_signature(self, xml_hash_b64: str) -> str:
-        """
-        Signs a base64-encoded invoice hash using the secp256k1 private key.
-        Returns the signature as base64 string.
-        """
-        # Step 1: Decode the base64 invoice hash
-        invoice_hash_bytes = base64.b64decode(xml_hash_b64)
-
-        # Step 2: Load private key
-        priv_key_pem = self.priv_key.strip()
-        if not priv_key_pem.startswith("-----BEGIN EC PRIVATE KEY-----"):
-            priv_key_pem = "-----BEGIN EC PRIVATE KEY-----\n" + priv_key_pem + "\n-----END EC PRIVATE KEY-----\n"
-
-        priv_key_base64 = self.priv_key
-
-        # Decode your base64 string
-        priv_key_bytes = base64.b64decode(priv_key_base64)
-
-        # Load EC private key (assuming PKCS8 DER format)
-        priv_key = serialization.load_der_private_key(
-            priv_key_bytes,
-            password=None
-        )
-
-        # Step 3: Sign the hash using ECDSA with SHA-256
-        signature = priv_key.sign(
-            invoice_hash_bytes,
-            ec.ECDSA(hashes.SHA256())
-        )
-
-        # Step 4: Return Base64-encoded signature
-        return base64.b64encode(signature).decode("utf-8")
-
-    def _generate_qr_code(self, tlv_data: bytes) -> str:
-        """Generate QR code from raw TLV binary"""
-        qr = qrcode.QRCode(
-            version=1,
-            error_correction=qrcode.constants.ERROR_CORRECT_M,
-            box_size=4,
-            border=2
-        )
-        qr.add_data(tlv_data)
-        qr.make(fit=True)
-
-        buffered = BytesIO()
-        qr.make_image().save(buffered, format="PNG")
-        return base64.b64encode(buffered.getvalue()).decode('utf-8')
-
-    def _generate_pih(self, totals: Dict, tlv_binary: bytes) -> str:
-        """Generate PIH using raw TLV bytes."""
-        hash_input = (
-                             self.seller['tax_number'] +
-                             totals['total_excl_vat'] +
-                             totals['vat_amount'] +
-                             totals['payable_amount']
-                     ).encode('utf-8') + tlv_binary
-        return base64.b64encode(hashlib.sha256(hash_input).digest()).decode('utf-8')
-
     def insert_signature_qr(self, invoice_xml: str, signed_extensions: str, qr64: str) -> str:
         from lxml import etree
 
@@ -672,7 +602,6 @@ class ZatcaSimplifiedInvoice:
                    totals: Dict,
                    qr_code: str,
                    pih: str,
-                   previous_invoice_hash: str,
                    invoice_uuid: str) -> str:
 
         # ASSUMING VAT RATE IS 15%, it is hardcoded under TaxTotal, Tax Category
@@ -697,7 +626,7 @@ class ZatcaSimplifiedInvoice:
             <cac:AdditionalDocumentReference>
                 <cbc:ID>PIH</cbc:ID>
                 <cac:Attachment>
-                    <cbc:EmbeddedDocumentBinaryObject mimeCode="text/plain">NWZlY2ViNjZmZmM4NmYzOGQ5NTI3ODZjNmQ2OTZjNzljMmRiYzIzOWRkNGU5MWI0NjcyOWQ3M2EyN7ZiNTdlOQ==</cbc:EmbeddedDocumentBinaryObject>
+                    <cbc:EmbeddedDocumentBinaryObject mimeCode="text/plain">{pih}</cbc:EmbeddedDocumentBinaryObject>
                 </cac:Attachment>
             </cac:AdditionalDocumentReference>
             <cac:AccountingSupplierParty>
@@ -787,10 +716,10 @@ class ZatcaSimplifiedInvoice:
         return invoice_lines_xml
 
 
-def main():
+def main(env):
     seller_info = {
-        'tax_number': "310000000000093",
-        'company_name': "My Store",
+        'tax_number': "300000000000003",
+        'company_name': "Gandofly",
         'street': "Main Street",
         'building': "123",
         'city': "Riyadh",
@@ -799,14 +728,20 @@ def main():
         "crn": "1010010000"
     }
 
-    cert = "TUlJQ05EQ0NBZHVnQXdJQkFnSUdBWmpIUGR1bk1Bb0dDQ3FHU000OUJBTUNNQlV4RXpBUkJnTlZCQU1NQ21WSmJuWnZhV05wYm1jd0hoY05NalV3T0RJd01URXlPVE14V2hjTk16QXdPREU1TWpFd01EQXdXakJwTVFzd0NRWURWUVFHRXdKVFFURVNNQkFHQTFVRUNnd0pkR1Z6ZENCeVpYTjBNUk13RVFZRFZRUUxEQW94TWpNME5UWTNPRGs0TVRFd0x3WURWUVFERENoVVUxUXRNekpoT1RsbU9ESXROamt3TlMwME5UUmhMVGxoTXpBdFl6bGpNbUZpWkRrNE56STNNRll3RUFZSEtvWkl6ajBDQVFZRks0RUVBQW9EUWdBRUdRNlpsZDlmTVBsZjFEQXNhT01iUHIyWnBrQ2RSc1ZkQ29sU29CT1NSTlc3NVdFMSs0Vy9DQThMbE9ZTlJJSlZ4ZGs3Q0lDanprcU5mVE9VenJvMi82T0J4VENCd2pBTUJnTlZIUk1CQWY4RUFqQUFNSUd4QmdOVkhSRUVnYWt3Z2Fha2dhTXdnYUF4UWpCQUJnTlZCQVFNT1RFdFRXbGpjbTlRVDFOOE1pMHhMakF1TUh3ekxUTXlZVGs1WmpneUxUWTVNRFV0TkRVMFlTMDVZVE13TFdNNVl6SmhZbVE1T0RjeU56RWZNQjBHQ2dtU0pvbVQ4aXhrQVFFTUR6TXdNVEF4TWpReE5EVXhNREV5TXpFTk1Bc0dBMVVFREF3RU1UQXdNREVWTUJNR0ExVUVHZ3dNZEdWemRDQmhaR1J5WlhOek1STXdFUVlEVlFRUERBcFNaWE4wWVhWeVlXNTBNQW9HQ0NxR1NNNDlCQU1DQTBjQU1FUUNJQ3lHSkZhcm1xdUVoRW9DbTI5dGp2d1hIeGFNM3AwU0FxTlRxajFFWEFBS0FpQjRXUzFyQVN2MUtQcitLSE50UHdpTTMyQ2E0dHdFS2FoR1ZVVzRhVjZsVWc9PQ=="
+    prod_cert = "TUlJRDNqQ0NBNFNnQXdJQkFnSVRFUUFBT0FQRjkwQWpzL3hjWHdBQkFBQTRBekFLQmdncWhrak9QUVFEQWpCaU1SVXdFd1lLQ1pJbWlaUHlMR1FCR1JZRmJHOWpZV3d4RXpBUkJnb0praWFKay9Jc1pBRVpGZ05uYjNZeEZ6QVZCZ29Ka2lhSmsvSXNaQUVaRmdkbGVIUm5ZWHAwTVJzd0dRWURWUVFERXhKUVVscEZTVTVXVDBsRFJWTkRRVFF0UTBFd0hoY05NalF3TVRFeE1Ea3hPVE13V2hjTk1qa3dNVEE1TURreE9UTXdXakIxTVFzd0NRWURWUVFHRXdKVFFURW1NQ1FHQTFVRUNoTWRUV0Y0YVcxMWJTQlRjR1ZsWkNCVVpXTm9JRk4xY0hCc2VTQk1WRVF4RmpBVUJnTlZCQXNURFZKcGVXRmthQ0JDY21GdVkyZ3hKakFrQmdOVkJBTVRIVlJUVkMwNE9EWTBNekV4TkRVdE16azVPVGs1T1RrNU9UQXdNREF6TUZZd0VBWUhLb1pJemowQ0FRWUZLNEVFQUFvRFFnQUVvV0NLYTBTYTlGSUVyVE92MHVBa0MxVklLWHhVOW5QcHgydmxmNHloTWVqeThjMDJYSmJsRHE3dFB5ZG84bXEwYWhPTW1Obzhnd25pN1h0MUtUOVVlS09DQWdjd2dnSURNSUd0QmdOVkhSRUVnYVV3Z2FLa2daOHdnWnd4T3pBNUJnTlZCQVFNTWpFdFZGTlVmREl0VkZOVWZETXRaV1F5TW1ZeFpEZ3RaVFpoTWkweE1URTRMVGxpTlRndFpEbGhPR1l4TVdVME5EVm1NUjh3SFFZS0NaSW1pWlB5TEdRQkFRd1BNems1T1RrNU9UazVPVEF3TURBek1RMHdDd1lEVlFRTURBUXhNVEF3TVJFd0R3WURWUVFhREFoU1VsSkVNamt5T1RFYU1CZ0dBMVVFRHd3UlUzVndjR3g1SUdGamRHbDJhWFJwWlhNd0hRWURWUjBPQkJZRUZFWCtZdm1tdG5Zb0RmOUJHYktvN29jVEtZSzFNQjhHQTFVZEl3UVlNQmFBRkp2S3FxTHRtcXdza0lGelZ2cFAyUHhUKzlObk1Ic0dDQ3NHQVFVRkJ3RUJCRzh3YlRCckJnZ3JCZ0VGQlFjd0FvWmZhSFIwY0RvdkwyRnBZVFF1ZW1GMFkyRXVaMjkyTG5OaEwwTmxjblJGYm5KdmJHd3ZVRkphUlVsdWRtOXBZMlZUUTBFMExtVjRkR2RoZW5RdVoyOTJMbXh2WTJGc1gxQlNXa1ZKVGxaUFNVTkZVME5CTkMxRFFTZ3hLUzVqY25Rd0RnWURWUjBQQVFIL0JBUURBZ2VBTUR3R0NTc0dBUVFCZ2pjVkJ3UXZNQzBHSlNzR0FRUUJnamNWQ0lHR3FCMkUwUHNTaHUyZEpJZk8reG5Ud0ZWbWgvcWxaWVhaaEQ0Q0FXUUNBUkl3SFFZRFZSMGxCQll3RkFZSUt3WUJCUVVIQXdNR0NDc0dBUVVGQndNQ01DY0dDU3NHQVFRQmdqY1ZDZ1FhTUJnd0NnWUlLd1lCQlFVSEF3TXdDZ1lJS3dZQkJRVUhBd0l3Q2dZSUtvWkl6ajBFQXdJRFNBQXdSUUloQUxFL2ljaG1uV1hDVUtVYmNhM3ljaThvcXdhTHZGZEhWalFydmVJOXVxQWJBaUE5aEM0TThqZ01CQURQU3ptZDJ1aVBKQTZnS1IzTEUwM1U3NWVxYkMvclhBPT0="
+    c_cert = "TUlJQ1F6Q0NBZW1nQXdJQkFnSUdBWmtBdXFxaE1Bb0dDQ3FHU000OUJBTUNNQlV4RXpBUkJnTlZCQU1NQ21WSmJuWnZhV05wYm1jd0hoY05NalV3T0RNeE1UVXlOREV5V2hjTk16QXdPRE13TWpFd01EQXdXakJxTVFzd0NRWURWUVFHRXdKVFFURVJNQThHQTFVRUNnd0lSMkZ1Wkc5bWJIa3hGVEFUQmdOVkJBc01ERkpwZVdGa0lFSnlZVzVqYURFeE1DOEdBMVVFQXd3b1ZGTlVMV1ZsWW1NM1lXVmtMVGsxTW1VdE5ESTVNUzA0Wm1JekxXTmpOR1U0T1RKak5qVmxOekJXTUJBR0J5cUdTTTQ5QWdFR0JTdUJCQUFLQTBJQUJNUnR0VHVqbTlUWHZYWTdEYlR0L0JRM1BFZ2htKzVqQzViSFpOeVJqTWF6Q3ZZcnZBSk8yQkhUQ3NlZWsrMXFRR0JXdUI0dGd3UWZ1VVVOanZjazFjU2pnZEl3Z2M4d0RBWURWUjBUQVFIL0JBSXdBRENCdmdZRFZSMFJCSUcyTUlHenBJR3dNSUd0TVVJd1FBWURWUVFFRERreExVMXBZM0p2VUU5VGZESXRNUzR3TGpCOE15MWxaV0pqTjJGbFpDMDVOVEpsTFRReU9URXRPR1ppTXkxall6UmxPRGt5WXpZMVpUY3hIekFkQmdvSmtpYUprL0lzWkFFQkRBOHpNREF3TURBd01EQXdNREF3TURNeERUQUxCZ05WQkF3TUJERXdNREF4SWpBZ0JnTlZCQm9NR1hKcGVXRmtJSEp2WVdRc0lISnBlV0ZrTENBeE16STBNVE14RXpBUkJnTlZCQThNQ25KbGMzUmhkWEpoYm5Rd0NnWUlLb1pJemowRUF3SURTQUF3UlFJaEFLbHpHM21UODFzOUZ1am5Yc0tjZ2h4VGdDQnpUZUNUekttSlU5aklGNUpuQWlBQXdrc2I1SGFab2N3MFB4TGgyMEoxUjVQL2ZHMHczWGROMGVJUlUvcTEzZz09"
+
+    if env == "prod":
+        cert = prod_cert
+    else:
+        cert = c_cert
     cert_b64 = base64.b64decode(cert).decode('ascii')
 
     priv_key = b"""-----BEGIN EC PRIVATE KEY-----
-            MHQCAQEEIGg466VhfqEocptdwQKMJup8+JuypJMz43moYwrT6fquoAcGBSuBBAAK
-            oUQDQgAEGQ6Zld9fMPlf1DAsaOMbPr2ZpkCdRsVdColSoBOSRNW75WE1+4W/CA8L
-            lOYNRIJVxdk7CICjzkqNfTOUzro2/w==
-            -----END EC PRIVATE KEY-----"""
+MHQCAQEEIJwgywYAxEEieb/lBMPp7lYwAZkGlXyd/Nwx9RrVauD+oAcGBSuBBAAK
+oUQDQgAExG21O6Ob1Ne9djsNtO38FDc8SCGb7mMLlsdk3JGMxrMK9iu8Ak7YEdMK
+x56T7WpAYFa4Hi2DBB+5RQ2O9yTVxA==
+-----END EC PRIVATE KEY-----"""
 
     generator = ZatcaSimplifiedInvoice(seller_info, priv_key=priv_key, cert=cert_b64)
     invoice_lines = [
@@ -814,10 +749,11 @@ def main():
         {'name': "Product 2", 'quantity': "1", 'unit_price': "50.00", 'vat_rate': "15"}
     ]
 
-    xml_invoice, uuid, invoice_hash = generator.generate(
+    xml_invoice, uuid, invoice_hash, qr = generator.generate(
         invoice_number="SME00023",
         invoice_date=datetime.now(),
-        lines=invoice_lines
+        lines=invoice_lines,
+        previous_invoice_hash="vLGQoYNoM3tf1XAxKpoNTSz/8pkdidXy47HWh0VQmu8="
     )
 
     with open("zatca_simplified_invoice.xml", "w", encoding="utf-8") as f:
@@ -830,9 +766,21 @@ def main():
     encoded_invoice = base64.b64encode(xml_bytes).decode("utf-8")
 
     from invoice_compliance import check_invoice_compliance
-    bst = "TUlJQ05EQ0NBZHVnQXdJQkFnSUdBWmpIUGR1bk1Bb0dDQ3FHU000OUJBTUNNQlV4RXpBUkJnTlZCQU1NQ21WSmJuWnZhV05wYm1jd0hoY05NalV3T0RJd01URXlPVE14V2hjTk16QXdPREU1TWpFd01EQXdXakJwTVFzd0NRWURWUVFHRXdKVFFURVNNQkFHQTFVRUNnd0pkR1Z6ZENCeVpYTjBNUk13RVFZRFZRUUxEQW94TWpNME5UWTNPRGs0TVRFd0x3WURWUVFERENoVVUxUXRNekpoT1RsbU9ESXROamt3TlMwME5UUmhMVGxoTXpBdFl6bGpNbUZpWkRrNE56STNNRll3RUFZSEtvWkl6ajBDQVFZRks0RUVBQW9EUWdBRUdRNlpsZDlmTVBsZjFEQXNhT01iUHIyWnBrQ2RSc1ZkQ29sU29CT1NSTlc3NVdFMSs0Vy9DQThMbE9ZTlJJSlZ4ZGs3Q0lDanprcU5mVE9VenJvMi82T0J4VENCd2pBTUJnTlZIUk1CQWY4RUFqQUFNSUd4QmdOVkhSRUVnYWt3Z2Fha2dhTXdnYUF4UWpCQUJnTlZCQVFNT1RFdFRXbGpjbTlRVDFOOE1pMHhMakF1TUh3ekxUTXlZVGs1WmpneUxUWTVNRFV0TkRVMFlTMDVZVE13TFdNNVl6SmhZbVE1T0RjeU56RWZNQjBHQ2dtU0pvbVQ4aXhrQVFFTUR6TXdNVEF4TWpReE5EVXhNREV5TXpFTk1Bc0dBMVVFREF3RU1UQXdNREVWTUJNR0ExVUVHZ3dNZEdWemRDQmhaR1J5WlhOek1STXdFUVlEVlFRUERBcFNaWE4wWVhWeVlXNTBNQW9HQ0NxR1NNNDlCQU1DQTBjQU1FUUNJQ3lHSkZhcm1xdUVoRW9DbTI5dGp2d1hIeGFNM3AwU0FxTlRxajFFWEFBS0FpQjRXUzFyQVN2MUtQcitLSE50UHdpTTMyQ2E0dHdFS2FoR1ZVVzRhVjZsVWc9PQ=="
-    sec = "5N73gCs++AE57F/Kvbbl/cAST/EpCJbzCkUPMyc9A88="
-    check_invoice_compliance(invoice_hash, uuid, encoded_invoice, bst, sec)
+    prod_bst = "TUlJRDNqQ0NBNFNnQXdJQkFnSVRFUUFBT0FQRjkwQWpzL3hjWHdBQkFBQTRBekFLQmdncWhrak9QUVFEQWpCaU1SVXdFd1lLQ1pJbWlaUHlMR1FCR1JZRmJHOWpZV3d4RXpBUkJnb0praWFKay9Jc1pBRVpGZ05uYjNZeEZ6QVZCZ29Ka2lhSmsvSXNaQUVaRmdkbGVIUm5ZWHAwTVJzd0dRWURWUVFERXhKUVVscEZTVTVXVDBsRFJWTkRRVFF0UTBFd0hoY05NalF3TVRFeE1Ea3hPVE13V2hjTk1qa3dNVEE1TURreE9UTXdXakIxTVFzd0NRWURWUVFHRXdKVFFURW1NQ1FHQTFVRUNoTWRUV0Y0YVcxMWJTQlRjR1ZsWkNCVVpXTm9JRk4xY0hCc2VTQk1WRVF4RmpBVUJnTlZCQXNURFZKcGVXRmthQ0JDY21GdVkyZ3hKakFrQmdOVkJBTVRIVlJUVkMwNE9EWTBNekV4TkRVdE16azVPVGs1T1RrNU9UQXdNREF6TUZZd0VBWUhLb1pJemowQ0FRWUZLNEVFQUFvRFFnQUVvV0NLYTBTYTlGSUVyVE92MHVBa0MxVklLWHhVOW5QcHgydmxmNHloTWVqeThjMDJYSmJsRHE3dFB5ZG84bXEwYWhPTW1Obzhnd25pN1h0MUtUOVVlS09DQWdjd2dnSURNSUd0QmdOVkhSRUVnYVV3Z2FLa2daOHdnWnd4T3pBNUJnTlZCQVFNTWpFdFZGTlVmREl0VkZOVWZETXRaV1F5TW1ZeFpEZ3RaVFpoTWkweE1URTRMVGxpTlRndFpEbGhPR1l4TVdVME5EVm1NUjh3SFFZS0NaSW1pWlB5TEdRQkFRd1BNems1T1RrNU9UazVPVEF3TURBek1RMHdDd1lEVlFRTURBUXhNVEF3TVJFd0R3WURWUVFhREFoU1VsSkVNamt5T1RFYU1CZ0dBMVVFRHd3UlUzVndjR3g1SUdGamRHbDJhWFJwWlhNd0hRWURWUjBPQkJZRUZFWCtZdm1tdG5Zb0RmOUJHYktvN29jVEtZSzFNQjhHQTFVZEl3UVlNQmFBRkp2S3FxTHRtcXdza0lGelZ2cFAyUHhUKzlObk1Ic0dDQ3NHQVFVRkJ3RUJCRzh3YlRCckJnZ3JCZ0VGQlFjd0FvWmZhSFIwY0RvdkwyRnBZVFF1ZW1GMFkyRXVaMjkyTG5OaEwwTmxjblJGYm5KdmJHd3ZVRkphUlVsdWRtOXBZMlZUUTBFMExtVjRkR2RoZW5RdVoyOTJMbXh2WTJGc1gxQlNXa1ZKVGxaUFNVTkZVME5CTkMxRFFTZ3hLUzVqY25Rd0RnWURWUjBQQVFIL0JBUURBZ2VBTUR3R0NTc0dBUVFCZ2pjVkJ3UXZNQzBHSlNzR0FRUUJnamNWQ0lHR3FCMkUwUHNTaHUyZEpJZk8reG5Ud0ZWbWgvcWxaWVhaaEQ0Q0FXUUNBUkl3SFFZRFZSMGxCQll3RkFZSUt3WUJCUVVIQXdNR0NDc0dBUVVGQndNQ01DY0dDU3NHQVFRQmdqY1ZDZ1FhTUJnd0NnWUlLd1lCQlFVSEF3TXdDZ1lJS3dZQkJRVUhBd0l3Q2dZSUtvWkl6ajBFQXdJRFNBQXdSUUloQUxFL2ljaG1uV1hDVUtVYmNhM3ljaThvcXdhTHZGZEhWalFydmVJOXVxQWJBaUE5aEM0TThqZ01CQURQU3ptZDJ1aVBKQTZnS1IzTEUwM1U3NWVxYkMvclhBPT0="
+    prod_sec = "CkYsEXfV8c1gFHAtFWoZv73pGMvh/Qyo4LzKM2h/8Hg="
+    c_bst = "TUlJQ1F6Q0NBZW1nQXdJQkFnSUdBWmtBdXFxaE1Bb0dDQ3FHU000OUJBTUNNQlV4RXpBUkJnTlZCQU1NQ21WSmJuWnZhV05wYm1jd0hoY05NalV3T0RNeE1UVXlOREV5V2hjTk16QXdPRE13TWpFd01EQXdXakJxTVFzd0NRWURWUVFHRXdKVFFURVJNQThHQTFVRUNnd0lSMkZ1Wkc5bWJIa3hGVEFUQmdOVkJBc01ERkpwZVdGa0lFSnlZVzVqYURFeE1DOEdBMVVFQXd3b1ZGTlVMV1ZsWW1NM1lXVmtMVGsxTW1VdE5ESTVNUzA0Wm1JekxXTmpOR1U0T1RKak5qVmxOekJXTUJBR0J5cUdTTTQ5QWdFR0JTdUJCQUFLQTBJQUJNUnR0VHVqbTlUWHZYWTdEYlR0L0JRM1BFZ2htKzVqQzViSFpOeVJqTWF6Q3ZZcnZBSk8yQkhUQ3NlZWsrMXFRR0JXdUI0dGd3UWZ1VVVOanZjazFjU2pnZEl3Z2M4d0RBWURWUjBUQVFIL0JBSXdBRENCdmdZRFZSMFJCSUcyTUlHenBJR3dNSUd0TVVJd1FBWURWUVFFRERreExVMXBZM0p2VUU5VGZESXRNUzR3TGpCOE15MWxaV0pqTjJGbFpDMDVOVEpsTFRReU9URXRPR1ppTXkxall6UmxPRGt5WXpZMVpUY3hIekFkQmdvSmtpYUprL0lzWkFFQkRBOHpNREF3TURBd01EQXdNREF3TURNeERUQUxCZ05WQkF3TUJERXdNREF4SWpBZ0JnTlZCQm9NR1hKcGVXRmtJSEp2WVdRc0lISnBlV0ZrTENBeE16STBNVE14RXpBUkJnTlZCQThNQ25KbGMzUmhkWEpoYm5Rd0NnWUlLb1pJemowRUF3SURTQUF3UlFJaEFLbHpHM21UODFzOUZ1am5Yc0tjZ2h4VGdDQnpUZUNUekttSlU5aklGNUpuQWlBQXdrc2I1SGFab2N3MFB4TGgyMEoxUjVQL2ZHMHczWGROMGVJUlUvcTEzZz09"
+    c_sec = "jLGTXPhrLAE8gW4MPq42FuP8NrgaH1+OkHqv4Ni7yYg="
+
+    if env == "prod":
+        from invoice_compliance import report_invoice
+        bst = prod_bst
+        sec = prod_sec
+        report_invoice(invoice_hash, uuid, encoded_invoice, bst, sec)
+    else:
+        from invoice_compliance import check_invoice_compliance
+        bst = c_bst
+        sec = c_sec
+        check_invoice_compliance(invoice_hash, uuid, encoded_invoice, bst, sec)
 
     with open("e-invoice.txt", "w+") as f:
         f.write(encoded_invoice)
@@ -843,4 +791,6 @@ def main():
 
 # ========== USAGE EXAMPLE ==========
 if __name__ == "__main__":
-    main()
+    envs = ["prod", "dev"]
+    for env in envs:
+        main(env)

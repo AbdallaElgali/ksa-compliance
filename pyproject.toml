@@ -1,0 +1,7 @@
+[project]
+name = "compliance"
+version = "0.1.0"
+dependencies = ["click"]
+
+[project.scripts]
+generate-csr = "main:generate_csr"

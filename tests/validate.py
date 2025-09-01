@@ -3,7 +3,7 @@ import base64, hashlib
 from lxml import etree
 
 ZATCA_FILE = "zatca_simplified_invoice.xml"
-XSL_FILE = "../invoices/Resources/transform.xsl"
+XSL_FILE = "../api/invoice_utils/Resources/transform.xsl"
 
 def transform_xml(xml, xsl_file_path):
     """ Apply XSL transformation to an XML """

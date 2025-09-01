@@ -12,9 +12,9 @@ class GenerateCSR:
             raise Exception(f"Command failed: {result.stderr.strip()}")
         return result
 
-    def generate_keys(self, working_dir, egs_uuid):
-        priv_file = os.path.join(working_dir, f"PrivateKey_{egs_uuid}.pem")
-        pub_file = os.path.join(working_dir, f"PublicKey_{egs_uuid}.pem")
+    def generate_keys(self, working_dir):
+        priv_file = os.path.join(working_dir, "PrivateKey.pem")
+        pub_file = os.path.join(working_dir, "PublicKey.pem")
 
         # Generate EC private key
         self.run_command(
@@ -30,7 +30,7 @@ class GenerateCSR:
 
     def create_configuration(self, working_dir, egs_uuid, ctn, **data):
         default_cnf = os.path.join(os.path.dirname(__file__), "default.cnf")
-        cfg_path = os.path.join(working_dir, f"openssl_{egs_uuid}.cnf")
+        cfg_path = os.path.join(working_dir, f"openssl_config.cnf")
 
         with open(default_cnf, "r") as f:
             content = f.read()
@@ -57,60 +57,78 @@ class GenerateCSR:
 
         return cfg_path
 
-    def generate_csr(self, csr_type, C, CN, O, OU, SN, UID, TITLE, CATEGORY, ADDRESS, egs_uuid):
+    def generate_csr(
+            self,
+            csr_type,
+            C,
+            CN,
+            O,
+            OU,
+            SN,
+            UID,
+            TITLE,
+            CATEGORY,
+            ADDRESS,
+            egs_uuid,
+            output_dir=None  # 👈 new argument
+    ):
+        # If no directory is passed, fall back to current directory
+        if output_dir is None:
+            output_dir = os.getcwd()
 
+        os.makedirs(output_dir, exist_ok=True)
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            key_file, pub_file = self.generate_keys(tmpdir, egs_uuid)
+        # 🔑 Generate key pair
+        key_file, pub_file = self.generate_keys(output_dir)
 
-            if csr_type == "sandbox":
-                ctn = "TSTZATCA"
-            elif csr_type == "simulation":
-                ctn = "PREZATCA"
-            else:
-                ctn = "ZATCA"
+        # 📛 Select certificate template name
+        if csr_type == "sandbox":
+            ctn = "TSTZATCA"
+        elif csr_type == "simulation":
+            ctn = "PREZATCA"
+        else:
+            ctn = "ZATCA"
 
-            cfg_path = self.create_configuration(
-                tmpdir, egs_uuid, ctn=ctn,
-                C=C, CN=CN, O=O, OU=OU, SN=SN,
-                UID=UID, TITLE=TITLE, CATEGORY=CATEGORY,
-                ADDRESS=ADDRESS
-            )
+        # ⚙️ Create config file
+        cfg_path = self.create_configuration(
+            output_dir, egs_uuid, ctn=ctn,
+            C=C, CN=CN, O=O, OU=OU, SN=SN,
+            UID=UID, TITLE=TITLE, CATEGORY=CATEGORY,
+            ADDRESS=ADDRESS
+        )
 
-            # 🔹 Show the generated OpenSSL config
-            print(f"\n[INFO] Generated OpenSSL config at: {cfg_path}")
-            with open(cfg_path, "r") as f:
-                pass
-                #print(f.read())
+        csr_file = os.path.join(output_dir, f"certificate.csr")
 
-            csr_file = os.path.join(tmpdir, f"cert_{egs_uuid}.csr")
+        try:
+            self.run_command([
+                "openssl", "req", "-new", "-sha256",
+                "-key", key_file,
+                "-config", cfg_path,
+                "-out", csr_file
+            ], cwd=output_dir)
+        except Exception as e:
+            print("[ERROR] OpenSSL failed while generating CSR")
+            print(str(e))
+            return {"status": 500, "error": str(e)}
 
-            try:
-                self.run_command([
-                    "openssl", "req", "-new", "-sha256",
-                    "-key", key_file,
-                    "-config", cfg_path,
-                    "-out", csr_file
-                ], cwd=tmpdir)
+        # Read outputs
+        with open(csr_file, "rb") as f:
+            csr_base64 = base64.b64encode(f.read()).decode("ascii")
 
-            except Exception as e:
-                print("[ERROR] OpenSSL failed while generating CSR")
-                print(str(e))
-                return {"status": 500, "error": str(e)}
+        with open(key_file, "r") as f:
+            private_key = f.read()
+        with open(pub_file, "r") as f:
+            public_key = f.read()
 
-            with open(csr_file, "rb") as f:
-                print(csr_file)
-                csr_base64 = base64.b64encode(f.read()).decode("ascii")
+        return {
+            "status": 200,
+            "certificate_signing_request": csr_base64,
+            "private_key": private_key,
+            "public_key": public_key,
+            "egs_uuid": egs_uuid,
+            "csr_file": csr_file,
+            "config_file": cfg_path,
+            "private_key_file": key_file,
+            "public_key_file": pub_file
+        }
 
-            with open(key_file, "r") as f:
-                private_key = f.read()
-            with open(pub_file, "r") as f:
-                public_key = f.read()
-
-            return {
-                "status": 200,
-                "certificate_signing_request": csr_base64,
-                "private_key": private_key,
-                "public_key": public_key,
-                "egs_uuid": egs_uuid
-            }
