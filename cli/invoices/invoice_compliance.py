@@ -1,5 +1,5 @@
 import requests
-from config import API_EXT, EINVOICING_URL
+from cli.config import API_EXT, EINVOICING_URL
 from requests.auth import HTTPBasicAuth
 
 def get_compliance_csid(csr_base64, otp) -> dict:

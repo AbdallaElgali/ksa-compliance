@@ -1,12 +1,9 @@
-import requests
 from typing import TypedDict, List, Dict, Tuple, Union
-from dataclasses import dataclass
 from xml.sax.saxutils import escape as xml_escape
 from datetime import datetime
 import hashlib
 import base64
 import qrcode
-from io import BytesIO
 import uuid
 from lxml import etree
 from cryptography.hazmat.primitives.asymmetric import ec
@@ -17,8 +14,8 @@ import io
 import os
 
 current_dir = os.getcwd()
-#XSL_FILE = f"{current_dir}\\invoice_utils\\Resources\\transform.xsl"
-XSL_FILE = f"{current_dir}\\Resources\\transform.xsl"
+XSL_FILE = f"{current_dir}\\invoice_utils\\Resources\\transform.xsl"
+#XSL_FILE = f"{current_dir}\\Resources\\transform.xsl"
 
 
 # ========== TYPES ==========
@@ -115,67 +112,34 @@ class ZatcaSimplifiedInvoice:
         return base64.b64encode(signature_bytes).decode()
 
     # --------- PHASE 2 SIGNING ---------
-    from cryptography.hazmat.primitives import serialization
-
-    def retrieve_public_key(self):
-        # self.priv_key is a PEM string like:
-        # -----BEGIN EC PRIVATE KEY-----
-        # MHQCAQEEIGg466VhfqEocptd...
-        # -----END EC PRIVATE KEY-----
-
-        # Convert string to bytes
-        priv_key_pem = self.priv_key.encode()
-
-        # Load the private key from PEM
-        priv_key = serialization.load_pem_private_key(priv_key_pem, password=None)
-
-        # Derive the public key
-        pub_key = priv_key.public_key()
-
-        # Export public key as DER-encoded SubjectPublicKeyInfo (X.509)
-        pub_key_der = pub_key.public_bytes(
-            encoding=serialization.Encoding.DER,
-            format=serialization.PublicFormat.SubjectPublicKeyInfo
-        )
-
-        # Base64 encode (this gives the "MFY…" format you want for QR)
-        pub_key_b64 = base64.b64encode(pub_key_der).decode()
-
-        return pub_key_b64
-
     def _canonicalize_xml(self, transformed_xml: str) -> str:
         """ Canonicalize the transformed XML. Returning the canonical xml string."""
         return etree.tostring(transformed_xml, method='c14n').decode('utf-8')
 
     def get_signed_properties_hash(self, signingTime, digestValue, x509IssuerName, x509SerialNumber) -> str:
         # Construct the XML string with exactly 36 spaces in front of <xades:SignedSignatureProperties>
-        xml_string = (
-                '<xades:SignedProperties xmlns:xades="http://uri.etsi.org/01903/v1.3.2#" Id="xadesSignedProperties">\n'
-                '                                    <xades:SignedSignatureProperties>\n'
-                '                                        <xades:SigningTime>{}</xades:SigningTime>\n'.format(
-                    signingTime) +
-                '                                        <xades:SigningCertificate>\n'
-                '                                            <xades:Cert>\n'
-                '                                                <xades:CertDigest>\n'
-                '                                                    <ds:DigestMethod xmlns:ds="http://www.w3.org/2000/09/xmldsig#" Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>\n'
-                '                                                    <ds:DigestValue xmlns:ds="http://www.w3.org/2000/09/xmldsig#">{}</ds:DigestValue>\n'.format(
-                    digestValue) +
-                '                                                </xades:CertDigest>\n'
-                '                                                <xades:IssuerSerial>\n'
-                '                                                    <ds:X509IssuerName xmlns:ds="http://www.w3.org/2000/09/xmldsig#">{}</ds:X509IssuerName>\n'.format(
-                    x509IssuerName) +
-                '                                                    <ds:X509SerialNumber xmlns:ds="http://www.w3.org/2000/09/xmldsig#">{}</ds:X509SerialNumber>\n'.format(
-                    x509SerialNumber) +
-                '                                                </xades:IssuerSerial>\n'
-                '                                            </xades:Cert>\n'
-                '                                        </xades:SigningCertificate>\n'
-                '                                    </xades:SignedSignatureProperties>\n'
-                '                                </xades:SignedProperties>'
-        )
+        xml_string = f"""<xades:SignedProperties xmlns:xades="http://uri.etsi.org/01903/v1.3.2#" Id="xadesSignedProperties">
+                                            <xades:SignedSignatureProperties>
+                                                <xades:SigningTime>{signingTime}</xades:SigningTime>
+                                                <xades:SigningCertificate>
+                                                    <xades:Cert>
+                                                        <xades:CertDigest>
+                                                            <ds:DigestMethod xmlns:ds="http://www.w3.org/2000/09/xmldsig#" Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
+                                                            <ds:DigestValue xmlns:ds="http://www.w3.org/2000/09/xmldsig#">{digestValue}</ds:DigestValue>
+                                                        </xades:CertDigest>
+                                                        <xades:IssuerSerial>
+                                                            <ds:X509IssuerName xmlns:ds="http://www.w3.org/2000/09/xmldsig#">{x509IssuerName}</ds:X509IssuerName>
+                                                            <ds:X509SerialNumber xmlns:ds="http://www.w3.org/2000/09/xmldsig#">{x509SerialNumber}</ds:X509SerialNumber>
+                                                        </xades:IssuerSerial>
+                                                    </xades:Cert>
+                                                </xades:SigningCertificate>
+                                            </xades:SignedSignatureProperties>
+                                        </xades:SignedProperties>"""
+
+        print('SignedProperties xml: ', xml_string)
 
         # Clean up the XML string (normalize newlines and trim extra spaces)
         xml_string = xml_string.replace("\r\n", "\n").strip()
-
         # Generate the SHA256 hash of the XML string in binary format
         hash_bytes = hashlib.sha256(xml_string.encode('utf-8')).digest()
 
@@ -196,7 +160,6 @@ class ZatcaSimplifiedInvoice:
                         xmlns:sig="urn:oasis:names:specification:ubl:schema:xsd:CommonSignatureComponents-2"
                         xmlns:sac="urn:oasis:names:specification:ubl:schema:xsd:SignatureAggregateComponents-2"
                         xmlns:sbc="urn:oasis:names:specification:ubl:schema:xsd:SignatureBasicComponents-2">
-
                         <sac:SignatureInformation>
                             <cbc:ID>{signature_id}</cbc:ID>
                             <sbc:ReferencedSignatureID>{referenced_signature_id}</sbc:ReferencedSignatureID>
@@ -213,22 +176,19 @@ class ZatcaSimplifiedInvoice:
                                         <ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
                                         <ds:DigestValue>{invoice_digest}</ds:DigestValue>
                                     </ds:Reference>
-
                                     <ds:Reference Type="http://uri.etsi.org/01903#SignedProperties" URI="#xadesSignedProperties">
                                         <ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
                                         <ds:DigestValue>{signed_props_digest}</ds:DigestValue>
                                     </ds:Reference>
                                 </ds:SignedInfo>
-
                                 <ds:SignatureValue>{signature_value}</ds:SignatureValue>
                                 <ds:KeyInfo>
                                     <ds:X509Data>
                                         <ds:X509Certificate>{certificate}</ds:X509Certificate>
                                     </ds:X509Data>
                                 </ds:KeyInfo>
-
                                 <ds:Object>
-                                    <xades:QualifyingProperties Target="signature" xmlns:xades="http://uri.etsi.org/01903/v1.3.2#">
+                                    <xades:QualifyingProperties xmlns:xades="http://uri.etsi.org/01903/v1.3.2#" Target="signature">
                                         <xades:SignedProperties Id="xadesSignedProperties">
                                             <xades:SignedSignatureProperties>
                                                 <xades:SigningTime>{SIGNATURE_TIMESTAMP}</xades:SigningTime>
@@ -268,7 +228,7 @@ class ZatcaSimplifiedInvoice:
         # Get signed properties digest and XML (note the correct arg: cert_digest_b64)
         signed_props_digest = self.get_signed_properties_hash(
             signingTime=signingTime,
-            digestValue=cert_digest_b64,
+            digestValue=self.generate_public_key_hashing(),
             x509IssuerName=issuer_name,
             x509SerialNumber=serial_number
         )
@@ -320,7 +280,6 @@ class ZatcaSimplifiedInvoice:
             invoice_date=invoice_date,
             lines=lines,
             totals=totals,
-            qr_code="",  # placeholder
             pih=previous_invoice_hash,  # placeholder
             invoice_uuid=invoice_uuid
         )
@@ -375,9 +334,6 @@ class ZatcaSimplifiedInvoice:
         return final_xml, invoice_uuid, invoice_hash_b64, qr_img_base64
 
     # --------- HELPERS ---------
-    def insert_qr_pih(self, xml, pih, qr64):
-        pass
-
     def _calculate_totals(self, lines: List[InvoiceLine]) -> Dict:
         total_excl_vat = 0.0
         vat_amount = 0.0
@@ -462,7 +418,6 @@ class ZatcaSimplifiedInvoice:
             # This is the actual signature (hex bytes)
             signature_bytes = certificate.signature
 
-
             # Generate TLV parts with debugging
             tlv_parts = []
             for tag, value in [
@@ -479,7 +434,6 @@ class ZatcaSimplifiedInvoice:
                 try:
                     part = encode_tlv(tag, value)
                     tlv_parts.append(part)
-                    #print(f"✅ Encoded tag {tag}: {len(part)} bytes total")
                 except Exception as e:
                     print(f"\n❌ FAILED TO ENCODE TAG {tag}:")
                     print(f"Value type: {type(value)}")
@@ -490,29 +444,8 @@ class ZatcaSimplifiedInvoice:
                         print(f"Bytes length: {len(value)}")
                     raise
 
-
             qr_data = b''.join(tlv_parts)
-            total_size = len(qr_data)
-
-            print("\n=== FINAL QR CODE ANALYSIS ===")
-            print(f"Total QR size: {total_size} bytes")
-
             return qr_data
-            """
-            decoded = decode_tlv(qr_data)
-            for tag, info in decoded.items():
-                print(f"Tag {tag}: {info['length']} bytes (raw: {info['raw_length']}) - {info['value']}")
-
-            if total_size > 500:
-                print("\n⚠️ WARNING: QR code exceeds recommended 500 bytes")
-                oversize = total_size - 500
-                print(f"Exceeds by: {oversize} bytes")
-                print("Consider reducing certificate or other field sizes")
-
-            if total_size > 1000:
-                print("\n❌ ERROR: QR code exceeds maximum 1000 bytes")
-                raise ValueError(f"QR code too large: {total_size} bytes")
-            """
 
         except Exception as e:
             print("\n=== DEBUGGING INFORMATION ===")
@@ -600,7 +533,6 @@ class ZatcaSimplifiedInvoice:
                    invoice_date: datetime,
                    lines: List[InvoiceLine],
                    totals: Dict,
-                   qr_code: str,
                    pih: str,
                    invoice_uuid: str) -> str:
 
@@ -718,7 +650,7 @@ class ZatcaSimplifiedInvoice:
 
 def main(env):
     seller_info = {
-        'tax_number': "300000000000003",
+        'tax_number': "399999999900003",
         'company_name': "Gandofly",
         'street': "Main Street",
         'building': "123",
@@ -729,7 +661,7 @@ def main(env):
     }
 
     prod_cert = "TUlJRDNqQ0NBNFNnQXdJQkFnSVRFUUFBT0FQRjkwQWpzL3hjWHdBQkFBQTRBekFLQmdncWhrak9QUVFEQWpCaU1SVXdFd1lLQ1pJbWlaUHlMR1FCR1JZRmJHOWpZV3d4RXpBUkJnb0praWFKay9Jc1pBRVpGZ05uYjNZeEZ6QVZCZ29Ka2lhSmsvSXNaQUVaRmdkbGVIUm5ZWHAwTVJzd0dRWURWUVFERXhKUVVscEZTVTVXVDBsRFJWTkRRVFF0UTBFd0hoY05NalF3TVRFeE1Ea3hPVE13V2hjTk1qa3dNVEE1TURreE9UTXdXakIxTVFzd0NRWURWUVFHRXdKVFFURW1NQ1FHQTFVRUNoTWRUV0Y0YVcxMWJTQlRjR1ZsWkNCVVpXTm9JRk4xY0hCc2VTQk1WRVF4RmpBVUJnTlZCQXNURFZKcGVXRmthQ0JDY21GdVkyZ3hKakFrQmdOVkJBTVRIVlJUVkMwNE9EWTBNekV4TkRVdE16azVPVGs1T1RrNU9UQXdNREF6TUZZd0VBWUhLb1pJemowQ0FRWUZLNEVFQUFvRFFnQUVvV0NLYTBTYTlGSUVyVE92MHVBa0MxVklLWHhVOW5QcHgydmxmNHloTWVqeThjMDJYSmJsRHE3dFB5ZG84bXEwYWhPTW1Obzhnd25pN1h0MUtUOVVlS09DQWdjd2dnSURNSUd0QmdOVkhSRUVnYVV3Z2FLa2daOHdnWnd4T3pBNUJnTlZCQVFNTWpFdFZGTlVmREl0VkZOVWZETXRaV1F5TW1ZeFpEZ3RaVFpoTWkweE1URTRMVGxpTlRndFpEbGhPR1l4TVdVME5EVm1NUjh3SFFZS0NaSW1pWlB5TEdRQkFRd1BNems1T1RrNU9UazVPVEF3TURBek1RMHdDd1lEVlFRTURBUXhNVEF3TVJFd0R3WURWUVFhREFoU1VsSkVNamt5T1RFYU1CZ0dBMVVFRHd3UlUzVndjR3g1SUdGamRHbDJhWFJwWlhNd0hRWURWUjBPQkJZRUZFWCtZdm1tdG5Zb0RmOUJHYktvN29jVEtZSzFNQjhHQTFVZEl3UVlNQmFBRkp2S3FxTHRtcXdza0lGelZ2cFAyUHhUKzlObk1Ic0dDQ3NHQVFVRkJ3RUJCRzh3YlRCckJnZ3JCZ0VGQlFjd0FvWmZhSFIwY0RvdkwyRnBZVFF1ZW1GMFkyRXVaMjkyTG5OaEwwTmxjblJGYm5KdmJHd3ZVRkphUlVsdWRtOXBZMlZUUTBFMExtVjRkR2RoZW5RdVoyOTJMbXh2WTJGc1gxQlNXa1ZKVGxaUFNVTkZVME5CTkMxRFFTZ3hLUzVqY25Rd0RnWURWUjBQQVFIL0JBUURBZ2VBTUR3R0NTc0dBUVFCZ2pjVkJ3UXZNQzBHSlNzR0FRUUJnamNWQ0lHR3FCMkUwUHNTaHUyZEpJZk8reG5Ud0ZWbWgvcWxaWVhaaEQ0Q0FXUUNBUkl3SFFZRFZSMGxCQll3RkFZSUt3WUJCUVVIQXdNR0NDc0dBUVVGQndNQ01DY0dDU3NHQVFRQmdqY1ZDZ1FhTUJnd0NnWUlLd1lCQlFVSEF3TXdDZ1lJS3dZQkJRVUhBd0l3Q2dZSUtvWkl6ajBFQXdJRFNBQXdSUUloQUxFL2ljaG1uV1hDVUtVYmNhM3ljaThvcXdhTHZGZEhWalFydmVJOXVxQWJBaUE5aEM0TThqZ01CQURQU3ptZDJ1aVBKQTZnS1IzTEUwM1U3NWVxYkMvclhBPT0="
-    c_cert = "TUlJQ1F6Q0NBZW1nQXdJQkFnSUdBWmtBdXFxaE1Bb0dDQ3FHU000OUJBTUNNQlV4RXpBUkJnTlZCQU1NQ21WSmJuWnZhV05wYm1jd0hoY05NalV3T0RNeE1UVXlOREV5V2hjTk16QXdPRE13TWpFd01EQXdXakJxTVFzd0NRWURWUVFHRXdKVFFURVJNQThHQTFVRUNnd0lSMkZ1Wkc5bWJIa3hGVEFUQmdOVkJBc01ERkpwZVdGa0lFSnlZVzVqYURFeE1DOEdBMVVFQXd3b1ZGTlVMV1ZsWW1NM1lXVmtMVGsxTW1VdE5ESTVNUzA0Wm1JekxXTmpOR1U0T1RKak5qVmxOekJXTUJBR0J5cUdTTTQ5QWdFR0JTdUJCQUFLQTBJQUJNUnR0VHVqbTlUWHZYWTdEYlR0L0JRM1BFZ2htKzVqQzViSFpOeVJqTWF6Q3ZZcnZBSk8yQkhUQ3NlZWsrMXFRR0JXdUI0dGd3UWZ1VVVOanZjazFjU2pnZEl3Z2M4d0RBWURWUjBUQVFIL0JBSXdBRENCdmdZRFZSMFJCSUcyTUlHenBJR3dNSUd0TVVJd1FBWURWUVFFRERreExVMXBZM0p2VUU5VGZESXRNUzR3TGpCOE15MWxaV0pqTjJGbFpDMDVOVEpsTFRReU9URXRPR1ppTXkxall6UmxPRGt5WXpZMVpUY3hIekFkQmdvSmtpYUprL0lzWkFFQkRBOHpNREF3TURBd01EQXdNREF3TURNeERUQUxCZ05WQkF3TUJERXdNREF4SWpBZ0JnTlZCQm9NR1hKcGVXRmtJSEp2WVdRc0lISnBlV0ZrTENBeE16STBNVE14RXpBUkJnTlZCQThNQ25KbGMzUmhkWEpoYm5Rd0NnWUlLb1pJemowRUF3SURTQUF3UlFJaEFLbHpHM21UODFzOUZ1am5Yc0tjZ2h4VGdDQnpUZUNUekttSlU5aklGNUpuQWlBQXdrc2I1SGFab2N3MFB4TGgyMEoxUjVQL2ZHMHczWGROMGVJUlUvcTEzZz09"
+    c_cert = "TUlJQ1NEQ0NBZTZnQXdJQkFnSUdBWmtHOEp1VU1Bb0dDQ3FHU000OUJBTUNNQlV4RXpBUkJnTlZCQU1NQ21WSmJuWnZhV05wYm1jd0hoY05NalV3T1RBeE1qQXlNRFV3V2hjTk16QXdPRE14TWpFd01EQXdXakJyTVFzd0NRWURWUVFHRXdKVFFURVJNQThHQTFVRUNnd0lSMkZ1Wkc5bWJIa3hGakFVQmdOVkJBc01EVXBoWkdSaGFDQkNjbUZ1WTJneE1UQXZCZ05WQkFNTUtGUlRWQzFoWkdWbFlUUXdZaTAyT1RZM0xUUmtOVFF0WW1Fek55MW1OREpqTkRFME9USTJOamN3VmpBUUJnY3Foa2pPUFFJQkJnVXJnUVFBQ2dOQ0FBVHRRUjY5NElaNHVMbHpnR05VQ0lYbUsxS3dJdHFTaXVjYVNsM0E4dXpYNTh0MUp6VkY2MkZDS2U1SW5QOGtuREJFUnRwazZ4cnpDRDBvSDllQmd5d2JvNEhXTUlIVE1Bd0dBMVVkRXdFQi93UUNNQUF3Z2NJR0ExVWRFUVNCdWpDQnQ2U0J0RENCc1RGQ01FQUdBMVVFQkF3NU1TMU5hV055YjFCUFUzd3lMVEV1TUM0d2ZETXRZV1JsWldFME1HSXROamsyTnkwMFpEVTBMV0poTXpjdFpqUXlZelF4TkRreU5qWTNNUjh3SFFZS0NaSW1pWlB5TEdRQkFRd1BNems1T1RrNU9UazVPVEF3TURBek1RMHdDd1lEVlFRTURBUXhNREF3TVNZd0pBWURWUVFhREIxTGFXNW5JRVpoYUdRZ1VtOWhaQ3dnVW1sNVlXUm9MQ0F4TWpNME5URVRNQkVHQTFVRUR3d0tjbVZ6ZEdGMWNtRnVkREFLQmdncWhrak9QUVFEQWdOSUFEQkZBaUVBdHMzd25JU3ExUmNDRlNKdmEvYldQQVBOcDBNVDU2c0ZUc3kwM1c1empUWUNJQndrZ1BVYmpEYXBhN0NmM0YxZHRaN2FMaXljbXlDbE1XOVZPQUVwaXM2Nw=="
 
     if env == "prod":
         cert = prod_cert
@@ -768,8 +700,8 @@ x56T7WpAYFa4Hi2DBB+5RQ2O9yTVxA==
     from invoice_compliance import check_invoice_compliance
     prod_bst = "TUlJRDNqQ0NBNFNnQXdJQkFnSVRFUUFBT0FQRjkwQWpzL3hjWHdBQkFBQTRBekFLQmdncWhrak9QUVFEQWpCaU1SVXdFd1lLQ1pJbWlaUHlMR1FCR1JZRmJHOWpZV3d4RXpBUkJnb0praWFKay9Jc1pBRVpGZ05uYjNZeEZ6QVZCZ29Ka2lhSmsvSXNaQUVaRmdkbGVIUm5ZWHAwTVJzd0dRWURWUVFERXhKUVVscEZTVTVXVDBsRFJWTkRRVFF0UTBFd0hoY05NalF3TVRFeE1Ea3hPVE13V2hjTk1qa3dNVEE1TURreE9UTXdXakIxTVFzd0NRWURWUVFHRXdKVFFURW1NQ1FHQTFVRUNoTWRUV0Y0YVcxMWJTQlRjR1ZsWkNCVVpXTm9JRk4xY0hCc2VTQk1WRVF4RmpBVUJnTlZCQXNURFZKcGVXRmthQ0JDY21GdVkyZ3hKakFrQmdOVkJBTVRIVlJUVkMwNE9EWTBNekV4TkRVdE16azVPVGs1T1RrNU9UQXdNREF6TUZZd0VBWUhLb1pJemowQ0FRWUZLNEVFQUFvRFFnQUVvV0NLYTBTYTlGSUVyVE92MHVBa0MxVklLWHhVOW5QcHgydmxmNHloTWVqeThjMDJYSmJsRHE3dFB5ZG84bXEwYWhPTW1Obzhnd25pN1h0MUtUOVVlS09DQWdjd2dnSURNSUd0QmdOVkhSRUVnYVV3Z2FLa2daOHdnWnd4T3pBNUJnTlZCQVFNTWpFdFZGTlVmREl0VkZOVWZETXRaV1F5TW1ZeFpEZ3RaVFpoTWkweE1URTRMVGxpTlRndFpEbGhPR1l4TVdVME5EVm1NUjh3SFFZS0NaSW1pWlB5TEdRQkFRd1BNems1T1RrNU9UazVPVEF3TURBek1RMHdDd1lEVlFRTURBUXhNVEF3TVJFd0R3WURWUVFhREFoU1VsSkVNamt5T1RFYU1CZ0dBMVVFRHd3UlUzVndjR3g1SUdGamRHbDJhWFJwWlhNd0hRWURWUjBPQkJZRUZFWCtZdm1tdG5Zb0RmOUJHYktvN29jVEtZSzFNQjhHQTFVZEl3UVlNQmFBRkp2S3FxTHRtcXdza0lGelZ2cFAyUHhUKzlObk1Ic0dDQ3NHQVFVRkJ3RUJCRzh3YlRCckJnZ3JCZ0VGQlFjd0FvWmZhSFIwY0RvdkwyRnBZVFF1ZW1GMFkyRXVaMjkyTG5OaEwwTmxjblJGYm5KdmJHd3ZVRkphUlVsdWRtOXBZMlZUUTBFMExtVjRkR2RoZW5RdVoyOTJMbXh2WTJGc1gxQlNXa1ZKVGxaUFNVTkZVME5CTkMxRFFTZ3hLUzVqY25Rd0RnWURWUjBQQVFIL0JBUURBZ2VBTUR3R0NTc0dBUVFCZ2pjVkJ3UXZNQzBHSlNzR0FRUUJnamNWQ0lHR3FCMkUwUHNTaHUyZEpJZk8reG5Ud0ZWbWgvcWxaWVhaaEQ0Q0FXUUNBUkl3SFFZRFZSMGxCQll3RkFZSUt3WUJCUVVIQXdNR0NDc0dBUVVGQndNQ01DY0dDU3NHQVFRQmdqY1ZDZ1FhTUJnd0NnWUlLd1lCQlFVSEF3TXdDZ1lJS3dZQkJRVUhBd0l3Q2dZSUtvWkl6ajBFQXdJRFNBQXdSUUloQUxFL2ljaG1uV1hDVUtVYmNhM3ljaThvcXdhTHZGZEhWalFydmVJOXVxQWJBaUE5aEM0TThqZ01CQURQU3ptZDJ1aVBKQTZnS1IzTEUwM1U3NWVxYkMvclhBPT0="
     prod_sec = "CkYsEXfV8c1gFHAtFWoZv73pGMvh/Qyo4LzKM2h/8Hg="
-    c_bst = "TUlJQ1F6Q0NBZW1nQXdJQkFnSUdBWmtBdXFxaE1Bb0dDQ3FHU000OUJBTUNNQlV4RXpBUkJnTlZCQU1NQ21WSmJuWnZhV05wYm1jd0hoY05NalV3T0RNeE1UVXlOREV5V2hjTk16QXdPRE13TWpFd01EQXdXakJxTVFzd0NRWURWUVFHRXdKVFFURVJNQThHQTFVRUNnd0lSMkZ1Wkc5bWJIa3hGVEFUQmdOVkJBc01ERkpwZVdGa0lFSnlZVzVqYURFeE1DOEdBMVVFQXd3b1ZGTlVMV1ZsWW1NM1lXVmtMVGsxTW1VdE5ESTVNUzA0Wm1JekxXTmpOR1U0T1RKak5qVmxOekJXTUJBR0J5cUdTTTQ5QWdFR0JTdUJCQUFLQTBJQUJNUnR0VHVqbTlUWHZYWTdEYlR0L0JRM1BFZ2htKzVqQzViSFpOeVJqTWF6Q3ZZcnZBSk8yQkhUQ3NlZWsrMXFRR0JXdUI0dGd3UWZ1VVVOanZjazFjU2pnZEl3Z2M4d0RBWURWUjBUQVFIL0JBSXdBRENCdmdZRFZSMFJCSUcyTUlHenBJR3dNSUd0TVVJd1FBWURWUVFFRERreExVMXBZM0p2VUU5VGZESXRNUzR3TGpCOE15MWxaV0pqTjJGbFpDMDVOVEpsTFRReU9URXRPR1ppTXkxall6UmxPRGt5WXpZMVpUY3hIekFkQmdvSmtpYUprL0lzWkFFQkRBOHpNREF3TURBd01EQXdNREF3TURNeERUQUxCZ05WQkF3TUJERXdNREF4SWpBZ0JnTlZCQm9NR1hKcGVXRmtJSEp2WVdRc0lISnBlV0ZrTENBeE16STBNVE14RXpBUkJnTlZCQThNQ25KbGMzUmhkWEpoYm5Rd0NnWUlLb1pJemowRUF3SURTQUF3UlFJaEFLbHpHM21UODFzOUZ1am5Yc0tjZ2h4VGdDQnpUZUNUekttSlU5aklGNUpuQWlBQXdrc2I1SGFab2N3MFB4TGgyMEoxUjVQL2ZHMHczWGROMGVJUlUvcTEzZz09"
-    c_sec = "jLGTXPhrLAE8gW4MPq42FuP8NrgaH1+OkHqv4Ni7yYg="
+    c_bst = "TUlJQ1NEQ0NBZTZnQXdJQkFnSUdBWmtHOEp1VU1Bb0dDQ3FHU000OUJBTUNNQlV4RXpBUkJnTlZCQU1NQ21WSmJuWnZhV05wYm1jd0hoY05NalV3T1RBeE1qQXlNRFV3V2hjTk16QXdPRE14TWpFd01EQXdXakJyTVFzd0NRWURWUVFHRXdKVFFURVJNQThHQTFVRUNnd0lSMkZ1Wkc5bWJIa3hGakFVQmdOVkJBc01EVXBoWkdSaGFDQkNjbUZ1WTJneE1UQXZCZ05WQkFNTUtGUlRWQzFoWkdWbFlUUXdZaTAyT1RZM0xUUmtOVFF0WW1Fek55MW1OREpqTkRFME9USTJOamN3VmpBUUJnY3Foa2pPUFFJQkJnVXJnUVFBQ2dOQ0FBVHRRUjY5NElaNHVMbHpnR05VQ0lYbUsxS3dJdHFTaXVjYVNsM0E4dXpYNTh0MUp6VkY2MkZDS2U1SW5QOGtuREJFUnRwazZ4cnpDRDBvSDllQmd5d2JvNEhXTUlIVE1Bd0dBMVVkRXdFQi93UUNNQUF3Z2NJR0ExVWRFUVNCdWpDQnQ2U0J0RENCc1RGQ01FQUdBMVVFQkF3NU1TMU5hV055YjFCUFUzd3lMVEV1TUM0d2ZETXRZV1JsWldFME1HSXROamsyTnkwMFpEVTBMV0poTXpjdFpqUXlZelF4TkRreU5qWTNNUjh3SFFZS0NaSW1pWlB5TEdRQkFRd1BNems1T1RrNU9UazVPVEF3TURBek1RMHdDd1lEVlFRTURBUXhNREF3TVNZd0pBWURWUVFhREIxTGFXNW5JRVpoYUdRZ1VtOWhaQ3dnVW1sNVlXUm9MQ0F4TWpNME5URVRNQkVHQTFVRUR3d0tjbVZ6ZEdGMWNtRnVkREFLQmdncWhrak9QUVFEQWdOSUFEQkZBaUVBdHMzd25JU3ExUmNDRlNKdmEvYldQQVBOcDBNVDU2c0ZUc3kwM1c1empUWUNJQndrZ1BVYmpEYXBhN0NmM0YxZHRaN2FMaXljbXlDbE1XOVZPQUVwaXM2Nw=="
+    c_sec = "w1mQespdD7gqA9VLN+B//VwY7Z6QTQkmh4i8q45KNb4="
 
     if env == "prod":
         from invoice_compliance import report_invoice
@@ -789,8 +721,48 @@ x56T7WpAYFa4Hi2DBB+5RQ2O9yTVxA==
     print(uuid)
 
 
-# ========== USAGE EXAMPLE ==========
-if __name__ == "__main__":
-    envs = ["prod", "dev"]
-    for env in envs:
-        main(env)
+def extract_vat_from_cert(cert_b64: str) -> str:
+    from cryptography.x509.oid import NameOID, ObjectIdentifier
+    """
+    Extract VAT number from a base64 DER-encoded X.509 certificate.
+    Works with ZATCA-issued production & test certificates.
+    """
+    # Decode certificate
+    cert_der = base64.b64decode(cert_b64)
+    cert = x509.load_der_x509_certificate(cert_der, default_backend())
+
+    subject = cert.subject
+
+    vat_number = None
+
+    # 1. Sometimes it's in the SerialNumber (OID 2.5.4.5)
+    try:
+        serial_number_attr = subject.get_attributes_for_oid(NameOID.SERIAL_NUMBER)
+        if serial_number_attr:
+            vat_number = serial_number_attr[0].value
+            if vat_number.isdigit():
+                return vat_number
+    except Exception:
+        pass
+
+    # 2. Sometimes it's encoded in OrganizationIdentifier (OID 2.5.4.97)
+    try:
+        org_id_oid = ObjectIdentifier("2.5.4.97")
+        org_id_attr = subject.get_attributes_for_oid(org_id_oid)
+        if org_id_attr:
+            val = org_id_attr[0].value
+            # Example: "VATKSA-310122393500003"
+            if "VATKSA" in val:
+                vat_number = val.split("-")[-1]
+                return vat_number
+    except Exception:
+        pass
+
+    # 3. As a fallback, scan the full RDN string
+    subj_str = subject.rfc4514_string()
+    for part in subj_str.split(","):
+        if "VATKSA" in part:
+            vat_number = part.split("-")[-1].strip()
+            return vat_number
+
+    return vat_number  # None if not found

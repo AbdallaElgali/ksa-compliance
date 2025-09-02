@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify
 from datetime import datetime
 from invoice_utils.invoice_generator import ZatcaSimplifiedInvoice
+from invoice_utils.invoice_compliance import report_invoice
 import base64
 
 app = Flask(__name__)
@@ -66,6 +67,31 @@ def generate_invoice():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route('/report-invoice', methods="POST")
+def report_invoice():
+    data = request.json()
+
+    inv_uuid = data.get("invoice_uuid")
+    inv_hash = data.get('invoice_hash')
+    inv_b64 = data.get("xml_invoice_b64")
+    cert = data.get("cert")
+    sec = data.get("secret")
+
+    params = [inv_uuid, inv_hash, inv_b64, cert, sec]
+    missing_params = []
+    for param in params:
+        if param is None:
+            missing_params.append(param)
+
+    if len(missing_params) > 0:
+        return jsonify({"error": f"Missing Parameters: {missing_params}"}), 400
+
+    try:
+        response, status_code = report_invoice(invoice_hash=inv_hash, invoice_b64=inv_b64, uuid=inv_uuid, binarySecurityToken=cert, secret=sec)
+        if response is None: raise Exception(f"Reporting failed with the following response: {response}")
+        return jsonify({"response", response}), status_code
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":
     app.run(host="127.0.0.1", port=5000, debug=True)

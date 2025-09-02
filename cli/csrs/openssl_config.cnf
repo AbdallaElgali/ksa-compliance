@@ -15,7 +15,7 @@ x509_extensions    = v3_ca
 C               = SA
 O               = Gandofly
 OU              = Jaddah Branch
-CN              = TST-55e2c77d-a51e-4e3f-8353-7f0757ee2ad1
+CN              = TST-adeea40b-6967-4d54-ba37-f42c41492667
 
 [ v3_ca ]
 basicConstraints = CA:FALSE
@@ -26,8 +26,8 @@ certificateTemplateName = ASN1:PRINTABLESTRING:TSTZATCA-Code-Signing
 subjectAltName = dirName:alt_names
 
 [ alt_names ]
-SN = 1-MicroPOS|2-1.0.0|3-55e2c77d-a51e-4e3f-8353-7f0757ee2ad1
-UID = 310000000000003
+SN = 1-MicroPOS|2-1.0.0|3-adeea40b-6967-4d54-ba37-f42c41492667
+UID = 399999999900003
 title = 1000
 registeredAddress = King Fahd Road, Riyadh, 12345
 businessCategory = restaurant

@@ -3,7 +3,6 @@
                 <ext:ExtensionURI>urn:oasis:names:specification:ubl:dsig:enveloped:xades</ext:ExtensionURI>
                 <ext:ExtensionContent>
                     <sig:UBLDocumentSignatures xmlns:sig="urn:oasis:names:specification:ubl:schema:xsd:CommonSignatureComponents-2" xmlns:sac="urn:oasis:names:specification:ubl:schema:xsd:SignatureAggregateComponents-2" xmlns:sbc="urn:oasis:names:specification:ubl:schema:xsd:SignatureBasicComponents-2">
-
                         <sac:SignatureInformation>
                             <cbc:ID>urn:oasis:names:specification:ubl:signature:1</cbc:ID>
                             <sbc:ReferencedSignatureID>urn:oasis:names:specification:ubl:signature:Invoice</sbc:ReferencedSignatureID>
@@ -18,36 +17,33 @@
                                             <ds:Transform Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"/>
                                         </ds:Transforms>
                                         <ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
-                                        <ds:DigestValue>lOCrd2UUeUwdXPHT6jNuZbuoVuQsS8wZHF7+z19pusk=</ds:DigestValue>
+                                        <ds:DigestValue>QFjahKXKdL5ID1SbnDxc04HwGit5Fcz6BYllsppIIog=</ds:DigestValue>
                                     </ds:Reference>
-
                                     <ds:Reference Type="http://uri.etsi.org/01903#SignedProperties" URI="#xadesSignedProperties">
                                         <ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
-                                        <ds:DigestValue>ZDAyYTI5NjIwYmVjM2Q1N2E2ZWI3MjcwZDdiZWI0ZDhjMjJiNzBiODlkNTIwYTVhNjc5ZWZhNzU1ZGEzYmJjMw==</ds:DigestValue>
+                                        <ds:DigestValue>ZmM0MjU3MjQ4NDc0Njg5MTk5MWRjODQ0NzU1ZjIzMjE4MDk5ZmU0OTBlMzEwMzdlMzAxZjVjYzMyMjBmNzNkZg==</ds:DigestValue>
                                     </ds:Reference>
                                 </ds:SignedInfo>
-
-                                <ds:SignatureValue>MEUCIQC2JNpQ0T9cYOVfyGYL9tZEU35/QvE90JKpPGpddLHIGgIgFKM9xL2faV1bBtdde86/pQycnj8626o0w1EFnVZ3CEQ=</ds:SignatureValue>
+                                <ds:SignatureValue>MEQCIAJ2eCe6gN3XIBsSwSx+pvPdB3Ol6FnXQ+efkuiwYR6NAiBVM895ZEBDe8swBDt/WPnLnm2Ivd7NKsfCok4YDU1rBA==</ds:SignatureValue>
                                 <ds:KeyInfo>
                                     <ds:X509Data>
-                                        <ds:X509Certificate>MIICQzCCAemgAwIBAgIGAZkAuqqhMAoGCCqGSM49BAMCMBUxEzARBgNVBAMMCmVJbnZvaWNpbmcwHhcNMjUwODMxMTUyNDEyWhcNMzAwODMwMjEwMDAwWjBqMQswCQYDVQQGEwJTQTERMA8GA1UECgwIR2FuZG9mbHkxFTATBgNVBAsMDFJpeWFkIEJyYW5jaDExMC8GA1UEAwwoVFNULWVlYmM3YWVkLTk1MmUtNDI5MS04ZmIzLWNjNGU4OTJjNjVlNzBWMBAGByqGSM49AgEGBSuBBAAKA0IABMRttTujm9TXvXY7DbTt/BQ3PEghm+5jC5bHZNyRjMazCvYrvAJO2BHTCseek+1qQGBWuB4tgwQfuUUNjvck1cSjgdIwgc8wDAYDVR0TAQH/BAIwADCBvgYDVR0RBIG2MIGzpIGwMIGtMUIwQAYDVQQEDDkxLU1pY3JvUE9TfDItMS4wLjB8My1lZWJjN2FlZC05NTJlLTQyOTEtOGZiMy1jYzRlODkyYzY1ZTcxHzAdBgoJkiaJk/IsZAEBDA8zMDAwMDAwMDAwMDAwMDMxDTALBgNVBAwMBDEwMDAxIjAgBgNVBBoMGXJpeWFkIHJvYWQsIHJpeWFkLCAxMzI0MTMxEzARBgNVBA8MCnJlc3RhdXJhbnQwCgYIKoZIzj0EAwIDSAAwRQIhAKlzG3mT81s9FujnXsKcghxTgCBzTeCTzKmJU9jIF5JnAiAAwksb5HaZocw0PxLh20J1R5P/fG0w3XdN0eIRU/q13g==</ds:X509Certificate>
+                                        <ds:X509Certificate>MIID3jCCA4SgAwIBAgITEQAAOAPF90Ajs/xcXwABAAA4AzAKBggqhkjOPQQDAjBiMRUwEwYKCZImiZPyLGQBGRYFbG9jYWwxEzARBgoJkiaJk/IsZAEZFgNnb3YxFzAVBgoJkiaJk/IsZAEZFgdleHRnYXp0MRswGQYDVQQDExJQUlpFSU5WT0lDRVNDQTQtQ0EwHhcNMjQwMTExMDkxOTMwWhcNMjkwMTA5MDkxOTMwWjB1MQswCQYDVQQGEwJTQTEmMCQGA1UEChMdTWF4aW11bSBTcGVlZCBUZWNoIFN1cHBseSBMVEQxFjAUBgNVBAsTDVJpeWFkaCBCcmFuY2gxJjAkBgNVBAMTHVRTVC04ODY0MzExNDUtMzk5OTk5OTk5OTAwMDAzMFYwEAYHKoZIzj0CAQYFK4EEAAoDQgAEoWCKa0Sa9FIErTOv0uAkC1VIKXxU9nPpx2vlf4yhMejy8c02XJblDq7tPydo8mq0ahOMmNo8gwni7Xt1KT9UeKOCAgcwggIDMIGtBgNVHREEgaUwgaKkgZ8wgZwxOzA5BgNVBAQMMjEtVFNUfDItVFNUfDMtZWQyMmYxZDgtZTZhMi0xMTE4LTliNTgtZDlhOGYxMWU0NDVmMR8wHQYKCZImiZPyLGQBAQwPMzk5OTk5OTk5OTAwMDAzMQ0wCwYDVQQMDAQxMTAwMREwDwYDVQQaDAhSUlJEMjkyOTEaMBgGA1UEDwwRU3VwcGx5IGFjdGl2aXRpZXMwHQYDVR0OBBYEFEX+YvmmtnYoDf9BGbKo7ocTKYK1MB8GA1UdIwQYMBaAFJvKqqLtmqwskIFzVvpP2PxT+9NnMHsGCCsGAQUFBwEBBG8wbTBrBggrBgEFBQcwAoZfaHR0cDovL2FpYTQuemF0Y2EuZ292LnNhL0NlcnRFbnJvbGwvUFJaRUludm9pY2VTQ0E0LmV4dGdhenQuZ292LmxvY2FsX1BSWkVJTlZPSUNFU0NBNC1DQSgxKS5jcnQwDgYDVR0PAQH/BAQDAgeAMDwGCSsGAQQBgjcVBwQvMC0GJSsGAQQBgjcVCIGGqB2E0PsShu2dJIfO+xnTwFVmh/qlZYXZhD4CAWQCARIwHQYDVR0lBBYwFAYIKwYBBQUHAwMGCCsGAQUFBwMCMCcGCSsGAQQBgjcVCgQaMBgwCgYIKwYBBQUHAwMwCgYIKwYBBQUHAwIwCgYIKoZIzj0EAwIDSAAwRQIhALE/ichmnWXCUKUbca3yci8oqwaLvFdHVjQrveI9uqAbAiA9hC4M8jgMBADPSzmd2uiPJA6gKR3LE03U75eqbC/rXA==</ds:X509Certificate>
                                     </ds:X509Data>
                                 </ds:KeyInfo>
-
                                 <ds:Object>
                                     <xades:QualifyingProperties xmlns:xades="http://uri.etsi.org/01903/v1.3.2#" Target="signature">
                                         <xades:SignedProperties Id="xadesSignedProperties">
                                             <xades:SignedSignatureProperties>
-                                                <xades:SigningTime>2025-09-01T13:19:34</xades:SigningTime>
+                                                <xades:SigningTime>2025-09-01T22:57:07</xades:SigningTime>
                                                 <xades:SigningCertificate>
                                                     <xades:Cert>
                                                         <xades:CertDigest>
                                                             <ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
-                                                            <ds:DigestValue>ZmY3NDEyM2E1ZWZhNDM4MDkzMWQwYzcwYjc5ZTgxZGU1N2RmMGExNjQ1NmI2ZjA2MjI3MDYwMTcxMDkwNGQ4YQ==</ds:DigestValue>
+                                                            <ds:DigestValue>ZDMwMmI0MTE1NzVjOTU2NTk4YzVlODhhYmI0ODU2NDUyNTU2YTVhYjhhMDFmN2FjYjk1YTA2OWQ0NjY2MjQ4NQ==</ds:DigestValue>
                                                         </xades:CertDigest>
                                                         <xades:IssuerSerial>
-                                                            <ds:X509IssuerName>CN=eInvoicing</ds:X509IssuerName>
-                                                            <ds:X509SerialNumber>1756653857441</ds:X509SerialNumber>
+                                                            <ds:X509IssuerName>CN=PRZEINVOICESCA4-CA,DC=extgazt,DC=gov,DC=local</ds:X509IssuerName>
+                                                            <ds:X509SerialNumber>379112742831380471835263969587287663520528387</ds:X509SerialNumber>
                                                         </xades:IssuerSerial>
                                                     </xades:Cert>
                                                 </xades:SigningCertificate>
@@ -62,9 +58,9 @@
             </ext:UBLExtension>
         </ext:UBLExtensions><cbc:ProfileID>reporting:1.0</cbc:ProfileID>
             <cbc:ID>SME00023</cbc:ID>
-            <cbc:UUID>098214c3-df8d-481a-a39e-10fab0a00e76</cbc:UUID>
+            <cbc:UUID>6d8efc00-658e-4f6a-be41-6e02b4858100</cbc:UUID>
             <cbc:IssueDate>2025-09-01</cbc:IssueDate>
-            <cbc:IssueTime>13:19:34</cbc:IssueTime>
+            <cbc:IssueTime>22:57:07</cbc:IssueTime>
             <cbc:InvoiceTypeCode name="020000000">388</cbc:InvoiceTypeCode>
             <cbc:DocumentCurrencyCode>SAR</cbc:DocumentCurrencyCode>
             <cbc:TaxCurrencyCode>SAR</cbc:TaxCurrencyCode>
@@ -78,7 +74,7 @@
                     <cbc:EmbeddedDocumentBinaryObject mimeCode="text/plain">vLGQoYNoM3tf1XAxKpoNTSz/8pkdidXy47HWh0VQmu8=</cbc:EmbeddedDocumentBinaryObject>
                 </cac:Attachment>
             </cac:AdditionalDocumentReference>
-            <cac:AdditionalDocumentReference><cbc:ID>QR</cbc:ID><cac:Attachment><cbc:EmbeddedDocumentBinaryObject mimeCode="text/plain">AQhHYW5kb2ZseQIPMzAwMDAwMDAwMDAwMDAzAxMyMDI1LTA5LTAxVDEzOjE5OjM0BAYyODcuNTAFBTM3LjUwBixsT0NyZDJVVWVVd2RYUEhUNmpOdVpidW9WdVFzUzh3WkhGNyt6MTlwdXNrPQdgTUVVQ0lRQzJKTnBRMFQ5Y1lPVmZ5R1lMOXRaRVUzNS9RdkU5MEpLcFBHcGRkTEhJR2dJZ0ZLTTl4TDJmYVYxYkJ0ZGRlODYvcFF5Y25qODYyNm8wdzFFRm5WWjNDRVE9CFgwVjAQBgcqhkjOPQIBBgUrgQQACgNCAATEbbU7o5vU1712Ow207fwUNzxIIZvuYwuWx2TckYzGswr2K7wCTtgR0wrHnpPtakBgVrgeLYMEH7lFDY73JNXECUcwRQIhAKlzG3mT81s9FujnXsKcghxTgCBzTeCTzKmJU9jIF5JnAiAAwksb5HaZocw0PxLh20J1R5P/fG0w3XdN0eIRU/q13g==</cbc:EmbeddedDocumentBinaryObject></cac:Attachment></cac:AdditionalDocumentReference><cac:Signature><cbc:ID>urn:oasis:names:specification:ubl:signature:Invoice</cbc:ID><cbc:SignatureMethod>urn:oasis:names:specification:ubl:dsig:enveloped:xades</cbc:SignatureMethod></cac:Signature><cac:AccountingSupplierParty>
+            <cac:AdditionalDocumentReference><cbc:ID>QR</cbc:ID><cac:Attachment><cbc:EmbeddedDocumentBinaryObject mimeCode="text/plain">AQhHYW5kb2ZseQIPMzk5OTk5OTk5OTAwMDAzAxMyMDI1LTA5LTAxVDIyOjU3OjA3BAYyODcuNTAFBTM3LjUwBixRRmphaEtYS2RMNUlEMVNibkR4YzA0SHdHaXQ1RmN6NkJZbGxzcHBJSW9nPQdgTUVRQ0lBSjJlQ2U2Z04zWElCc1N3U3grcHZQZEIzT2w2Rm5YUStlZmt1aXdZUjZOQWlCVk04OTVaRUJEZThzd0JEdC9XUG5Mbm0ySXZkN05Lc2ZDb2s0WURVMXJCQT09CFgwVjAQBgcqhkjOPQIBBgUrgQQACgNCAAShYIprRJr0UgStM6/S4CQLVUgpfFT2c+nHa+V/jKEx6PLxzTZcluUOru0/J2jyarRqE4yY2jyDCeLte3UpP1R4CUcwRQIhALE/ichmnWXCUKUbca3yci8oqwaLvFdHVjQrveI9uqAbAiA9hC4M8jgMBADPSzmd2uiPJA6gKR3LE03U75eqbC/rXA==</cbc:EmbeddedDocumentBinaryObject></cac:Attachment></cac:AdditionalDocumentReference><cac:Signature><cbc:ID>urn:oasis:names:specification:ubl:signature:Invoice</cbc:ID><cbc:SignatureMethod>urn:oasis:names:specification:ubl:dsig:enveloped:xades</cbc:SignatureMethod></cac:Signature><cac:AccountingSupplierParty>
                 <cac:Party>
                     <cac:PartyIdentification>
                         <cbc:ID schemeID="CRN">1010010000</cbc:ID>
@@ -93,7 +89,7 @@
                         </cac:Country>
                     </cac:PostalAddress>
                     <cac:PartyTaxScheme>
-                        <cbc:CompanyID>300000000000003</cbc:CompanyID>
+                        <cbc:CompanyID>399999999900003</cbc:CompanyID>
                         <cac:TaxScheme>
                             <cbc:ID>VAT</cbc:ID>
                         </cac:TaxScheme>

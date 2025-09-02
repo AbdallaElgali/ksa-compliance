@@ -1,5 +1,5 @@
 import requests
-from config import API_EXT, EINVOICING_URL
+from cli.config import API_EXT, EINVOICING_URL
 from requests.auth import HTTPBasicAuth
 
 def check_invoice_compliance(invoice_hash, uuid, invoice_b64, binarySecurityToken, secret):
@@ -41,9 +41,9 @@ def check_invoice_compliance(invoice_hash, uuid, invoice_b64, binarySecurityToke
             print("Response text:", response.text)
         return None
 
-def report_invoice(invoice_hash, uuid, invoice_b64, binarySecurityToken, secret):
-    #url = f"{EINVOICING_URL}/{API_EXT}/compliance/invoices"
-    url = "https://gw-fatoora.zatca.gov.sa/e-invoicing/developer-portal/invoices/reporting/single"
+def report_invoice(invoice_hash, uuid, invoice_b64, binarySecurityToken, secret) -> (dict | None, int):
+    url = f"{EINVOICING_URL}/{API_EXT}/invoices/reporting/single"
+    #url = "https://gw-fatoora.zatca.gov.sa/e-invoicing/developer-portal/invoices/reporting/single"
     # Create Basic Auth header
     auth = HTTPBasicAuth(binarySecurityToken, secret)
 
@@ -63,10 +63,10 @@ def report_invoice(invoice_hash, uuid, invoice_b64, binarySecurityToken, secret)
     response = requests.post(url, json=payload, headers=headers, auth=auth)
 
     if response.status_code in [200, 202]:
-        print("Compliance invoices Response:", response.json())
-        return response.json()
+        print("Reporting invoice Response:", response.json())
+        return response.json(), response.status_code
     else:
-        print(f"Compliance check failed with: {response.status_code}")
+        print(f"Reporting failed with: {response.status_code}")
         try:
             error_json = response.json()
             if "errors" in error_json:
@@ -78,4 +78,4 @@ def report_invoice(invoice_hash, uuid, invoice_b64, binarySecurityToken, secret)
                 print(len(errors))
         except ValueError:
             print("Response text:", response.text)
-        return None
+        return None, 500

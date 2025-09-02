@@ -62,10 +62,11 @@ def generate_csr(csr_type, c, cn, o, ou, sn, uid, title, category, address, egs_
 mycommands.add_command(generate_csr)
 
 @click.command()
+@click.option("--env", required=True, default="sandbox", help="The enviroment (test: sandbox, sim: simulation, prod: production).")
 @click.option("--csr-dir", required=True, default=f"{current_dir}\csrs", help="The directory where the CSR certificate is present.")
 @click.option("--otp", required=True, default="123345", help="The OTP provided by ZATACA.")
 @click.option("--output-dir", default=current_dir, help="The output directory.")
-def generate_csid(csr_dir: str, otp: str, output_dir: str):
+def generate_ccsid(csr_dir: str, otp: str, output_dir: str):
     if type(otp) != "str":
         click.UsageError("OTP Must be of type string.")
     if len(otp) != 6:
@@ -97,14 +98,14 @@ def generate_csid(csr_dir: str, otp: str, output_dir: str):
     except Exception as e:
         click.UsageError(str(e))
 
-mycommands.add_command(generate_csid)
+mycommands.add_command(generate_ccsid)
 
 @click.command()
 @click.option("--csid-dir", required=True, default=current_dir, help="The directory where the CSID json response is present.")
 @click.option("--output-dir", default=current_dir, help="The output directory.")
-def generate_psid(csid_dir: str, output_dir: str):
+def generate_pcsid(csid_dir: str, output_dir: str):
 
-    with open(f"{current_dir}\compliance_auth.json", "r") as inf:  # read as bytes
+    with open(f"{csid_dir}\compliance_auth.json", "r") as inf:  # read as bytes
         data = json.load(inf)
 
     req_id = data["req_id"]
@@ -133,7 +134,7 @@ def generate_psid(csid_dir: str, output_dir: str):
     except Exception as e:
         click.UsageError(str(e))
 
-mycommands.add_command(generate_psid)
+mycommands.add_command(generate_pcsid)
 
 class InvoiceLine(TypedDict):
     name: str
