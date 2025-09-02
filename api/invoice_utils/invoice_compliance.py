@@ -1,5 +1,5 @@
 import requests
-from cli.config import API_EXT, EINVOICING_URL
+from config import API_EXT, EINVOICING_URL
 from requests.auth import HTTPBasicAuth
 
 def check_invoice_compliance(invoice_hash, uuid, invoice_b64, binarySecurityToken, secret):

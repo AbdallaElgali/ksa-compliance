@@ -1,7 +1,19 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
 [project]
-name = "compliance"
+name = "ksa-compliance"
 version = "0.1.0"
-dependencies = ["click"]
+description = "KSA Compliance CLI & API"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "click",
+    "Flask",
+    "python-dotenv"
+]
 
 [project.scripts]
-generate-csr = "main:generate_csr"
+ksa-cli = "cli.cli:mycommands"
+ksa-api = "api.main:app"
